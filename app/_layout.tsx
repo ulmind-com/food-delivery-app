@@ -1,57 +1,105 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
+import { useEffect } from 'react';
+import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import {
+  useFonts,
+  Inter_300Light,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+  Inter_900Black,
+} from '@expo-google-fonts/inter';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ThemeProvider } from '../constants/ThemeContext';
+import { useAuthStore } from '../store/useAuthStore';
+import { useRestaurantStore } from '../store/useRestaurantStore';
+import { useCartStore } from '../store/useCartStore';
+import { restaurantApi } from '../services/api';
 
-import { useColorScheme } from '@/components/useColorScheme';
-
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
-
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+function RootLayoutInner() {
+  const loadFromStorage = useAuthStore((s) => s.loadFromStorage);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const setRestaurant = useRestaurantStore((s) => s.setRestaurant);
+  const setLoading = useRestaurantStore((s) => s.setLoading);
+  const fetchCart = useCartStore((s) => s.fetchCart);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  const [fontsLoaded] = useFonts({
+    'Inter': Inter_400Regular,
+    'Inter-Medium': Inter_500Medium,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
+    'Inter-ExtraBold': Inter_800ExtraBold,
+    'Inter-Black': Inter_900Black,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+    loadFromStorage();
+    // Fetch restaurant info
+    restaurantApi.get()
+      .then((res) => setRestaurant(res.data))
+      .catch(() => setLoading(false));
+  }, []);
+
+  // Fetch cart when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated()) {
+      fetchCart();
+    }
+  }, [isAuthenticated()]);
 
   useEffect(() => {
-    if (loaded) {
+    if (fontsLoaded && !authLoading) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded, authLoading]);
 
-  if (!loaded) {
+  if (!fontsLoaded || authLoading) {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <>
+      <StatusBar style="dark" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#FFFFFF' },
+          animation: 'slide_from_right',
+        }}
+      >
+        <Stack.Screen name="(auth)/welcome" options={{ animation: 'fade' }} />
+        <Stack.Screen
+          name="(auth)/login"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="(auth)/register"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="checkout" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="cart" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="addresses" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="orders/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="chat" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+    </>
+  );
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <RootLayoutInner />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
