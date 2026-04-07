@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { MapPin, Home, Briefcase, Plus, CheckCircle2, ArrowLeft, Trash2 } from 'lucide-react-native';
 import { userApi } from '../services/api';
 import { useLocationStore, SavedAddress } from '../store/useLocationStore';
@@ -29,9 +29,11 @@ export default function AddressesScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchAddresses();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAddresses();
+    }, [])
+  );
 
   const handleSelect = (addr: SavedAddress) => {
     setSelectedAddress(addr);
@@ -124,7 +126,7 @@ export default function AddressesScreen() {
             <Button
               title="ADD NEW ADDRESS"
               leftIcon={<Plus size={20} color={colors.primaryForeground} />}
-              onPress={() => console.log('Location Map logic to be added')} 
+              onPress={() => router.push('/add-address')} 
             />
           </View>
         </View>

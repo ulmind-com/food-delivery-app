@@ -110,8 +110,9 @@ export const paymentApi = {
 };
 
 export const couponApi = {
-  getAvailable: () => api.get('/coupons/available'),
-  validateCoupon: (code: string) => api.get(`/coupons/validate/${code}`),
+  getAll: () => api.get('/coupons'),
+  validateCoupon: (data: { code: string; cartValue: number }) =>
+    api.post('/coupons/validate', data),
 };
 
 export const reviewApi = {

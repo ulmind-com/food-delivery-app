@@ -55,8 +55,7 @@ export function ProductDetailSheet({ item, onClose }: ProductDetailSheetProps) {
   const handleAdd = () => {
     if (!isAuthenticated()) {
       onClose();
-      router.push('/(auth)/login');
-      return;
+      return router.push('/(auth)/login');
     }
     addItem({
       _id: item._id,
@@ -120,14 +119,20 @@ export function ProductDetailSheet({ item, onClose }: ProductDetailSheetProps) {
             <View style={[styles.counterContainer, { backgroundColor: colors.card, borderColor: colors.primary }]}>
               <TouchableOpacity
                 style={styles.counterButton}
-                onPress={decrementItem.bind(null, cartItem.itemId)}
+                onPress={() => {
+                  if (!isAuthenticated()) return router.push('/(auth)/login');
+                  decrementItem(cartItem.itemId);
+                }}
               >
                 <Minus size={20} color={colors.primary} />
               </TouchableOpacity>
               <Text style={[styles.counterText, { color: colors.primary }]}>{cartItem.quantity}</Text>
               <TouchableOpacity
                 style={styles.counterButton}
-                onPress={incrementItem.bind(null, cartItem.itemId)}
+                onPress={() => {
+                  if (!isAuthenticated()) return router.push('/(auth)/login');
+                  incrementItem(cartItem.itemId);
+                }}
               >
                 <Plus size={20} color={colors.primary} />
               </TouchableOpacity>

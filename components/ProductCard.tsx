@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-nativ
 import { Image } from 'expo-image';
 import { Plus, Minus, Zap } from 'lucide-react-native';
 import { useCartStore } from '../store/useCartStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { useTheme, Colors } from '../constants/ThemeContext';
 import { resolveImageURL } from '../lib/image-utils';
+import { useRouter } from 'expo-router';
 
 // Reusing Veg/Non-Veg icons from web design
 const VegIcon = () => (
@@ -35,6 +37,9 @@ interface ProductCardProps {
 export function ProductCard({ item, onPress }: ProductCardProps) {
   const { colors, isDark } = useTheme();
   
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const router = useRouter();
+
   const items = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
   const incrementItem = useCartStore((s) => s.incrementItem);
@@ -45,8 +50,10 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
   const imageUrl = resolveImageURL(item.image || item.imageURL);
 
   const handleAdd = (e?: any) => {
-    // Stop propagation so outer card onPress doesn't fire
     if (e && e.stopPropagation) e.stopPropagation();
+    if (!isAuthenticated()) {
+      return router.push('/(auth)/login');
+    }
     addItem({
       _id: item._id,
       name: item.name,
@@ -59,11 +66,13 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
 
   const handleIncrement = (e?: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
+    if (!isAuthenticated()) return router.push('/(auth)/login');
     if (cartItem) incrementItem(cartItem.itemId);
   };
 
   const handleDecrement = (e?: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
+    if (!isAuthenticated()) return router.push('/(auth)/login');
     if (cartItem) decrementItem(cartItem.itemId);
   };
 
