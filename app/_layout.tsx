@@ -1,4 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Dimensions } from 'react-native';
+import LottieView from 'lottie-react-native';
+import Animated, { FadeOut, FadeInDown } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -20,6 +23,7 @@ import { useCartStore } from '../store/useCartStore';
 import { restaurantApi } from '../services/api';
 
 SplashScreen.preventAutoHideAsync();
+const { width } = Dimensions.get('window');
 
 function RootLayoutInner() {
   const loadFromStorage = useAuthStore((s) => s.loadFromStorage);
@@ -53,9 +57,12 @@ function RootLayoutInner() {
     }
   }, [isAuthenticated()]);
 
+  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+
   useEffect(() => {
     if (fontsLoaded && !authLoading) {
       SplashScreen.hideAsync();
+      setTimeout(() => setShowAnimatedSplash(false), 2800); // slightly longer for the text animations
     }
   }, [fontsLoaded, authLoading]);
 
@@ -66,6 +73,32 @@ function RootLayoutInner() {
   return (
     <>
       <StatusBar style="dark" />
+      {showAnimatedSplash && (
+        <Animated.View
+          exiting={FadeOut.duration(500)}
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: '#FFF5EC', zIndex: 9999, alignItems: 'center', justifyContent: 'center' }]}
+        >
+          <LottieView
+            source={require('../public/Loading animation for Food app.json')}
+            autoPlay
+            loop={false}
+            style={{ width: width * 0.9, height: width * 0.9 }}
+            speed={0.9}
+          />
+          <Animated.Text
+            entering={FadeInDown.delay(300).springify().damping(12)}
+            style={{ fontFamily: 'Inter-Black', fontSize: 32, color: '#FC8019', marginTop: -55, letterSpacing: -0.5 }}
+          >
+            QuickBite
+          </Animated.Text>
+          <Animated.Text
+            entering={FadeInDown.delay(500).springify().damping(14)}
+            style={{ fontFamily: 'Inter-Medium', fontSize: 16, color: '#F97316', opacity: 0.85, marginTop: -2 }}
+          >
+            Delivering happiness to your door
+          </Animated.Text>
+        </Animated.View>
+      )}
       <Stack
         screenOptions={{
           headerShown: false,

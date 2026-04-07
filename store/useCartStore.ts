@@ -1,7 +1,7 @@
 /**
  * 🛒 Cart Store — Zustand (Server-synced with optimistic updates)
- * Mirrors web's useCartStore.ts
- * The most complex store — handles optimistic UI + backend sync.
+ * Mirrors web's useCartStore.ts — COMPLETE PARITY
+ * Handles optimistic UI + backend sync + delivery fee + coupons.
  */
 import { create } from 'zustand';
 import { cartApi } from '../services/api';
@@ -38,7 +38,7 @@ interface CartState {
 
   // Actions
   toggleCart: () => void;
-  fetchCart: () => Promise<void>;
+  fetchCart: (coords?: { lat: number; lng: number }) => Promise<void>;
   addItem: (item: {
     _id: string;
     name: string;
@@ -68,21 +68,66 @@ const parseCartResponse = (data: any) => {
     type: item.product?.type,
   }));
 
+  const localItemsTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  // Parse coupon if applied
+  let appliedCoupon: AppliedCoupon | null = null;
+  let discountAmount = 0;
+  if (data.appliedCoupon || data.coupon) {
+    const c = data.appliedCoupon || data.coupon;
+    appliedCoupon = {
+      code: c.code || c.couponCode || '',
+      name: c.name || c.title || '',
+      discountType: c.discountType || 'FLAT',
+      discountAmount: c.discountAmount || 0,
+    };
+    
+    // Safely calculate discount directly incase backend cart object didn't compute it
+    const apiComputedDiscount = data.discountAmount || data.discount || 0;
+    if (apiComputedDiscount > 0) {
+      discountAmount = apiComputedDiscount;
+    } else {
+      if (c.discountType === 'PERCENTAGE') {
+        const pct = c.discountPercent || c.discountAmount || 0;
+        discountAmount = (localItemsTotal * pct) / 100;
+        if (c.maxDiscountAmount && discountAmount > c.maxDiscountAmount) {
+          discountAmount = c.maxDiscountAmount;
+        }
+      } else {
+        discountAmount = c.discountAmount || 0;
+      }
+    }
+    appliedCoupon.discountAmount = discountAmount; // Set absolute value for UI display
+  } else {
+    discountAmount = data.discountAmount || data.discount || 0;
+  }
+
+  const tax = data.totalTax || data.taxAmount || 0;
+  const deliveryFee = data.deliveryFee || data.deliveryCharge || data.shipping || 0;
+  
+  // Prefer API's finalTotal, but fallback safely
+  const finalPrice = data.finalTotal || data.finalAmount || data.totalPrice || Math.max(0, localItemsTotal + tax + deliveryFee - discountAmount);
+  
+  // Ensure totalPrice uses our robust local items total
+  const totalPrice = localItemsTotal;
+
   return {
     items,
-    totalPrice: data.totalPrice || data.itemsTotal || 0,
-    tax: data.totalTax || 0,
+    totalPrice,
+    tax,
     taxBreakdown: data.taxBreakdown || { cgstTotal: 0, sgstTotal: 0, igstTotal: 0 },
-    finalPrice: data.finalTotal || data.totalPrice || 0,
-    discountAmount: 0,
-    appliedCoupon: null,
+    deliveryFee,
+    finalPrice,
+    discountAmount,
+    appliedCoupon,
   };
 };
 
-export const useCartStore = create<CartState>((set, get) => ({
+export const useCartStore = create<CartState & { syncCount: number }>((set, get) => ({
   items: [],
   isOpen: false,
   isLoading: false,
+  syncCount: 0,
   totalPrice: 0,
   discountAmount: 0,
   finalPrice: 0,
@@ -93,13 +138,43 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   toggleCart: () => set((s) => ({ isOpen: !s.isOpen })),
 
-  fetchCart: async () => {
+  fetchCart: async (coords) => {
     try {
       set({ isLoading: true });
-      const { data } = await cartApi.getCart();
-      const parsed = parseCartResponse(data);
+      
+      const cartRes = await cartApi.getCart();
+      const cartData = cartRes.data;
+
+      // Always fetch bill to get proper discount calculations and fully populated coupon object
+      let billData = {};
+      try {
+        const billRes = await cartApi.getBill(coords?.lat, coords?.lng);
+        billData = billRes.data || {};
+      } catch (e) {
+        console.warn('Failed to fetch bill:', e);
+      }
+
+      // Merge data so parseCartResponse has both items and full coupon/tax details
+      const mergedData = {
+        ...cartData,
+        ...billData,
+        // Ensure the populated coupon object from bill overrides the simple string code from cart
+        appliedCoupon: (billData.appliedCoupon && typeof billData.appliedCoupon === 'object')
+          ? billData.appliedCoupon
+          : (cartData.appliedCoupon || null)
+      };
+
+      const parsed = parseCartResponse(mergedData);
+      
+      // If a mutation is actively in flight, discard this fetch to prevent flashing stale data
+      if (get().syncCount > 0) {
+        set({ isLoading: false });
+        return;
+      }
+
       set({ ...parsed, isLoading: false });
-    } catch {
+    } catch (e) {
+      console.error('fetchCart Error:', e);
       set({ isLoading: false });
     }
   },
@@ -107,55 +182,68 @@ export const useCartStore = create<CartState>((set, get) => ({
   addItem: async (item) => {
     // Optimistic: add immediately
     const optimisticId = `temp_${Date.now()}`;
+    const newPrice = item.price;
     set((s) => ({
+      syncCount: s.syncCount + 1,
       items: [...s.items, {
         ...item,
         itemId: optimisticId,
         quantity: 1,
         type: item.type as 'Veg' | 'Non-Veg' | undefined,
       }],
-      totalPrice: s.totalPrice + item.price,
+      totalPrice: s.totalPrice + newPrice,
+      finalPrice: s.finalPrice + newPrice,
     }));
 
     try {
-      const { data } = await cartApi.addToCart({
+      await cartApi.addToCart({
         productId: item._id,
         quantity: 1,
         variant: item.variant,
       });
-      const parsed = parseCartResponse(data);
-      set({ ...parsed });
+      // Allow fetchCart to execute and update state fully
+      set((s) => ({ syncCount: s.syncCount - 1 }));
+      await get().fetchCart();
     } catch {
       // Rollback
       set((s) => ({
+        syncCount: s.syncCount - 1,
         items: s.items.filter((i) => i.itemId !== optimisticId),
-        totalPrice: s.totalPrice - item.price,
+        totalPrice: s.totalPrice - newPrice,
+        finalPrice: s.finalPrice - newPrice,
       }));
     }
   },
 
   incrementItem: async (itemId) => {
     // Optimistic
+    const item = get().items.find((i) => i.itemId === itemId);
+    if (!item) return;
+
     set((s) => ({
+      syncCount: s.syncCount + 1,
       items: s.items.map((i) =>
         i.itemId === itemId ? { ...i, quantity: i.quantity + 1 } : i
       ),
+      totalPrice: s.totalPrice + item.price,
+      finalPrice: s.finalPrice + item.price,
     }));
 
     try {
-      const item = get().items.find((i) => i.itemId === itemId);
-      if (!item) return;
-      const { data } = await cartApi.updateCartItem(itemId, {
-        quantity: item.quantity,
+      await cartApi.updateCartItem(itemId, {
+        quantity: item.quantity + 1,
       });
-      const parsed = parseCartResponse(data);
-      set({ ...parsed });
+      set((s) => ({ syncCount: s.syncCount - 1 }));
+      await get().fetchCart();
     } catch {
       // Rollback
       set((s) => ({
+        syncCount: s.syncCount - 1,
         items: s.items.map((i) =>
           i.itemId === itemId ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i
         ),
+        totalPrice: s.totalPrice - item.price,
+        finalPrice: s.finalPrice - item.price,
       }));
     }
   },
@@ -174,6 +262,8 @@ export const useCartStore = create<CartState>((set, get) => ({
       items: s.items.map((i) =>
         i.itemId === itemId ? { ...i, quantity: i.quantity - 1 } : i
       ),
+      totalPrice: s.totalPrice - item.price,
+      finalPrice: s.finalPrice - item.price,
     }));
 
     try {
@@ -188,14 +278,21 @@ export const useCartStore = create<CartState>((set, get) => ({
         items: s.items.map((i) =>
           i.itemId === itemId ? { ...i, quantity: i.quantity + 1 } : i
         ),
+        totalPrice: s.totalPrice + item.price,
+        finalPrice: s.finalPrice + item.price,
       }));
     }
   },
 
   removeItem: async (itemId) => {
     const prev = get().items;
+    const itemToRemove = prev.find((i) => i.itemId === itemId);
+    const deduction = itemToRemove ? itemToRemove.price * itemToRemove.quantity : 0;
+    
     set((s) => ({
       items: s.items.filter((i) => i.itemId !== itemId),
+      totalPrice: s.totalPrice - deduction,
+      finalPrice: s.finalPrice - deduction,
     }));
 
     try {
@@ -203,7 +300,11 @@ export const useCartStore = create<CartState>((set, get) => ({
       const parsed = parseCartResponse(data);
       set({ ...parsed });
     } catch {
-      set({ items: prev });
+      set((s) => ({
+        items: prev,
+        totalPrice: s.totalPrice + deduction,
+        finalPrice: s.finalPrice + deduction,
+      }));
     }
   },
 
@@ -214,6 +315,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       totalPrice: 0,
       tax: 0,
       finalPrice: 0,
+      deliveryFee: 0,
       discountAmount: 0,
       appliedCoupon: null,
     });
@@ -226,6 +328,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         totalPrice: prev.totalPrice,
         tax: prev.tax,
         finalPrice: prev.finalPrice,
+        deliveryFee: prev.deliveryFee,
       });
     }
   },

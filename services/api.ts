@@ -99,7 +99,7 @@ export const cartApi = {
 
 export const orderApi = {
   placeOrder: (data: any) => api.post('/orders', data),
-  getMyOrders: () => api.get('/orders/myorders'),
+  getMyOrders: () => api.get('/orders/my-orders'),
   getOrderById: (id: string) => api.get(`/orders/${id}`),
   cancelOrder: (id: string) => api.put(`/orders/${id}/cancel`),
 };

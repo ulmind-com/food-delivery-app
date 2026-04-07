@@ -4,17 +4,29 @@ import {
   RefreshControl, Platform, Pressable,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Image } from 'expo-image';
 import {
-  Clock, ChevronRight, Package, Truck, CheckCircle2,
-  XCircle, RotateCcw, ShoppingBag,
+  Clock, ChevronRight, Package, Bike, CheckCircle2,
+  XCircle, ShoppingBag, MessageSquare, ChefHat
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { useAuthStore } from '../../store/useAuthStore';
 import { orderApi } from '../../services/api';
-import { resolveImageURL } from '../../lib/image-utils';
 
 const PRIMARY = '#FC8019';
+const TEXT_COLOR = '#1A1A1A';
+const MUTED = '#9CA3AF';
+const BORDER = '#E5E7EB';
+const BG = '#F9FAFB';
+
+// Exact parity with web's STATUS_CONFIG
+const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: any; label: string }> = {
+  PLACED: { color: '#2563EB', bg: '#DBEAFE', icon: ShoppingBag, label: 'Order Placed' },
+  ACCEPTED: { color: '#0891B2', bg: '#CFFAFE', icon: CheckCircle2, label: 'Accepted' },
+  PREPARING: { color: '#EA580C', bg: '#FFEDD5', icon: ChefHat, label: 'Preparing' },
+  OUT_FOR_DELIVERY: { color: '#9333EA', bg: '#F3E8FF', icon: Bike, label: 'Out for Delivery' },
+  DELIVERED: { color: '#16A34A', bg: '#DCFCE7', icon: CheckCircle2, label: 'Delivered' },
+  CANCELLED: { color: '#DC2626', bg: '#FEE2E2', icon: XCircle, label: 'Cancelled' },
+};
 
 export default function OrdersScreen() {
   const router = useRouter();
@@ -41,80 +53,65 @@ export default function OrdersScreen() {
 
   const onRefresh = useCallback(() => { setRefreshing(true); fetchOrders(); }, []);
 
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case 'Pending': case 'Accepted':
-        return { color: '#F59E0B', bg: '#FEF3C7', icon: <Package size={14} color="#F59E0B" />, label: status };
-      case 'Cooking':
-        return { color: '#3B82F6', bg: '#DBEAFE', icon: <Clock size={14} color="#3B82F6" />, label: 'Preparing' };
-      case 'Out for Delivery':
-        return { color: '#8B5CF6', bg: '#EDE9FE', icon: <Truck size={14} color="#8B5CF6" />, label: 'On the way' };
-      case 'Delivered':
-        return { color: '#16a34a', bg: '#DCFCE7', icon: <CheckCircle2 size={14} color="#16a34a" />, label: 'Delivered' };
-      case 'Cancelled':
-        return { color: '#DC2626', bg: '#FEE2E2', icon: <XCircle size={14} color="#DC2626" />, label: 'Cancelled' };
-      default:
-        return { color: '#6B7280', bg: '#F3F4F6', icon: <Clock size={14} color="#6B7280" />, label: status };
-    }
+  const getItemsSummary = (items: any[]) => {
+    if (!items?.length) return "No items";
+    const names = items.map((i: any) => `${i.name || i.product?.name || i.menuItem?.name || "Item"} × ${i.quantity}`);
+    if (names.length <= 2) return names.join(", ");
+    return `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
   };
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
-    const statusInfo = getStatusInfo(item.status);
+    const status = (item.status || item.orderStatus || 'PLACED').toUpperCase();
+    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.PLACED;
+    const StatusIcon = cfg.icon;
+
     const date = new Date(item.createdAt).toLocaleDateString('en-IN', {
-      day: 'numeric', month: 'short', year: 'numeric',
+      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
     });
-    const time = new Date(item.createdAt).toLocaleTimeString('en-IN', {
-      hour: '2-digit', minute: '2-digit',
-    });
-    const itemNames = item.items?.map((i: any) => i.product?.name || i.name || 'Item').slice(0, 3).join(', ');
-    const itemCount = item.items?.length || 0;
-    const firstImage = resolveImageURL(item.items?.[0]?.product?.image || item.items?.[0]?.image);
+
+    const isDelivered = status === 'DELIVERED';
+    
+    // Fallbacks
+    const billTotal = item.finalTotal || item.finalAmount || item.totalPrice || item.totalAmount || 0;
+    const orderRefId = item.customId || `#${(item._id || '').slice(-6).toUpperCase()}`;
 
     return (
-      <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
+      <Animated.View entering={FadeInDown.delay(index * 60).springify().damping(18)}>
         <Pressable
           style={styles.orderCard}
           onPress={() => router.push(`/orders/${item._id || item.id}`)}
         >
-          {/* Top row: Status + Date */}
-          <View style={styles.cardTopRow}>
-            <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
-              {statusInfo.icon}
-              <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
-            </View>
+          {/* Header: customId + Date */}
+          <View style={styles.cardHeader}>
+            <Text style={styles.orderIdText}>{orderRefId}</Text>
             <Text style={styles.dateText}>{date}</Text>
           </View>
 
-          {/* Items row */}
-          <View style={styles.itemsRow}>
-            {firstImage ? (
-              <Image source={{ uri: firstImage }} style={styles.orderThumb} contentFit="cover" />
-            ) : (
-              <View style={[styles.orderThumb, { backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' }]}>
-                <Package size={20} color="#D0D0D0" />
-              </View>
-            )}
-            <View style={styles.itemsInfo}>
-              <Text style={styles.itemsText} numberOfLines={1}>{itemNames || 'Your order'}</Text>
-              <Text style={styles.itemsCount}>{itemCount} {itemCount === 1 ? 'item' : 'items'} · {time}</Text>
-            </View>
-            <Text style={styles.orderTotal}>₹{(item.finalTotal || item.totalPrice || 0).toFixed(0)}</Text>
-          </View>
+          {/* Body: Items Preview */}
+          <Text style={styles.itemSummary} numberOfLines={1}>{getItemsSummary(item.items)}</Text>
 
-          {/* Bottom row: Actions */}
-          <View style={styles.cardBottomRow}>
-            <Text style={styles.orderId}>#{(item._id || '').slice(-6).toUpperCase()}</Text>
-            <View style={styles.actionBtns}>
-              {item.status === 'Delivered' && (
-                <TouchableOpacity style={styles.reorderBtn}>
-                  <RotateCcw size={13} color={PRIMARY} />
-                  <Text style={styles.reorderText}>Reorder</Text>
+          {/* Footer: Status + Total */}
+          <View style={styles.cardFooter}>
+            <View style={styles.footerLeft}>
+              <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
+                <StatusIcon size={12} color={cfg.color} strokeWidth={2.5} />
+                <Text style={[styles.statusText, { color: cfg.color }]}>{cfg.label}</Text>
+              </View>
+
+              {isDelivered && (
+                <TouchableOpacity 
+                  onPress={(e) => { e.stopPropagation(); /* TODO: Open Review Modal natively */ }}
+                  style={styles.rateBtn}
+                >
+                  <MessageSquare size={12} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.rateBtnText}>Rate</Text>
                 </TouchableOpacity>
               )}
-              <View style={styles.viewDetailBtn}>
-                <Text style={styles.viewDetailText}>Details</Text>
-                <ChevronRight size={14} color={PRIMARY} />
-              </View>
+            </View>
+
+            <View style={styles.footerRight}>
+              <Text style={styles.orderTotal}>₹{Number(billTotal).toFixed(2)}</Text>
+              <ChevronRight size={16} color={MUTED} />
             </View>
           </View>
         </Pressable>
@@ -128,7 +125,7 @@ export default function OrdersScreen() {
       <View style={[styles.container, styles.centerWrap]}>
         <Animated.View entering={FadeIn.duration(500)} style={{ alignItems: 'center' }}>
           <View style={styles.emptyIconBox}>
-            <ShoppingBag size={48} color="#D0D0D0" />
+            <Package size={48} color={MUTED} opacity={0.5} />
           </View>
           <Text style={styles.emptyTitle}>Login to view orders</Text>
           <Text style={styles.emptySub}>Track your orders and reorder your favourites</Text>
@@ -149,18 +146,12 @@ export default function OrdersScreen() {
       </Animated.View>
 
       {loading ? (
-        <View style={styles.centerWrap}>
-          {/* Skeleton */}
+        <View style={styles.skeletonWrap}>
           {[1, 2, 3].map(i => (
-            <View key={i} style={[styles.orderCard, { opacity: 0.4 }]}>
-              <View style={{ height: 14, width: 80, backgroundColor: '#F0F0F5', borderRadius: 4, marginBottom: 12 }} />
-              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                <View style={{ width: 50, height: 50, borderRadius: 10, backgroundColor: '#F0F0F5' }} />
-                <View style={{ flex: 1, gap: 6 }}>
-                  <View style={{ height: 14, width: '70%', backgroundColor: '#F0F0F5', borderRadius: 4 }} />
-                  <View style={{ height: 10, width: '40%', backgroundColor: '#F0F0F5', borderRadius: 4 }} />
-                </View>
-              </View>
+            <View key={i} style={styles.skeletonCard}>
+              <View style={{ height: 16, width: 90, backgroundColor: BORDER, borderRadius: 4, marginBottom: 12 }} />
+              <View style={{ height: 12, width: '60%', backgroundColor: BORDER, borderRadius: 4, marginBottom: 16 }} />
+              <View style={{ height: 24, width: '100%', backgroundColor: BORDER, borderRadius: 12 }} />
             </View>
           ))}
         </View>
@@ -174,9 +165,14 @@ export default function OrdersScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY]} />}
           ListEmptyComponent={
             <View style={[styles.centerWrap, { paddingTop: 80 }]}>
-              <Text style={{ fontSize: 56, marginBottom: 16 }}>📦</Text>
+              <View style={styles.emptyIconBox}>
+                <Package size={48} color={MUTED} opacity={0.3} />
+              </View>
               <Text style={styles.emptyTitle}>No orders yet</Text>
-              <Text style={styles.emptySub}>Your delicious orders will appear here</Text>
+              <Text style={styles.emptySub}>Your order history will appear here</Text>
+              <TouchableOpacity style={styles.browseBtn} onPress={() => router.replace('/(tabs)')}>
+                <Text style={styles.browseBtnText}>Browse Menu</Text>
+              </TouchableOpacity>
             </View>
           }
         />
@@ -186,63 +182,58 @@ export default function OrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFCF7' },
+  container: { flex: 1, backgroundColor: BG },
   centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  
   header: {
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 60 : 48,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1, borderBottomColor: '#F3F3F3',
+    borderBottomWidth: 1, borderBottomColor: BORDER,
   },
-  headerTitle: { fontFamily: 'Inter-Black', fontSize: 24, color: '#3D4152' },
-  headerSub: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#93959F', marginTop: 2 },
+  headerTitle: { fontFamily: 'Inter-Black', fontSize: 22, color: TEXT_COLOR },
+  headerSub: { fontFamily: 'Inter-Medium', fontSize: 13, color: MUTED, marginTop: 4 },
+  
   listContent: { padding: 16, paddingBottom: 40 },
+  
   orderCard: {
     backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3,
+    marginBottom: 12, borderWidth: 1, borderColor: BORDER,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6, elevation: 2,
   },
-  cardTopRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14,
-  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  orderIdText: { fontFamily: 'Inter-Bold', fontSize: 14, color: TEXT_COLOR },
+  dateText: { fontFamily: 'Inter-Medium', fontSize: 12, color: MUTED },
+  
+  itemSummary: { fontFamily: 'Inter-Medium', fontSize: 13, color: MUTED, marginBottom: 16 },
+  
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
   },
-  statusText: { fontFamily: 'Inter-Bold', fontSize: 11 },
-  dateText: { fontFamily: 'Inter-Medium', fontSize: 12, color: '#93959F' },
-  itemsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  orderThumb: { width: 50, height: 50, borderRadius: 10 },
-  itemsInfo: { flex: 1 },
-  itemsText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: '#3D4152' },
-  itemsCount: { fontFamily: 'Inter-Medium', fontSize: 12, color: '#93959F', marginTop: 2 },
-  orderTotal: { fontFamily: 'Inter-Black', fontSize: 16, color: '#3D4152' },
-  cardBottomRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F5F5F5',
+  statusText: { fontFamily: 'Inter-Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  rateBtn: { 
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: PRIMARY, paddingHorizontal: 12, paddingVertical: 4.5, borderRadius: 8,
+    shadowColor: PRIMARY, shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3
   },
-  orderId: { fontFamily: 'Inter-Medium', fontSize: 12, color: '#93959F' },
-  actionBtns: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  reorderBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
-    backgroundColor: '#FFF3E0',
-  },
-  reorderText: { fontFamily: 'Inter-Bold', fontSize: 12, color: PRIMARY },
-  viewDetailBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  viewDetailText: { fontFamily: 'Inter-Bold', fontSize: 13, color: PRIMARY },
-  // Empty
-  emptyIconBox: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-  },
-  emptyTitle: { fontFamily: 'Inter-Bold', fontSize: 20, color: '#3D4152', marginBottom: 6 },
-  emptySub: { fontFamily: 'Inter-Medium', fontSize: 14, color: '#93959F', textAlign: 'center', maxWidth: '80%', lineHeight: 20 },
-  loginBtn: {
-    marginTop: 24, backgroundColor: PRIMARY, borderRadius: 14,
-    paddingHorizontal: 40, paddingVertical: 14,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
-  },
-  loginBtnText: { fontFamily: 'Inter-Bold', fontSize: 16, color: '#FFF' },
+  rateBtnText: { fontFamily: 'Inter-Bold', fontSize: 10, color: '#FFFFFF' },
+  
+  footerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  orderTotal: { fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR },
+
+  // Empty / Skeleton
+  skeletonWrap: { padding: 16 },
+  skeletonCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: BORDER, opacity: 0.5 },
+  emptyIconBox: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginBottom: 20, borderWidth: 1, borderColor: BORDER },
+  emptyTitle: { fontFamily: 'Inter-Black', fontSize: 18, color: TEXT_COLOR, marginBottom: 4 },
+  emptySub: { fontFamily: 'Inter-Medium', fontSize: 13, color: MUTED, textAlign: 'center', maxWidth: '80%', lineHeight: 20 },
+  loginBtn: { marginTop: 24, backgroundColor: PRIMARY, borderRadius: 14, paddingHorizontal: 40, paddingVertical: 14 },
+  loginBtnText: { fontFamily: 'Inter-Bold', fontSize: 15, color: '#FFFFFF' },
+  browseBtn: { marginTop: 24, backgroundColor: PRIMARY, borderRadius: 12, paddingHorizontal: 32, paddingVertical: 12 },
+  browseBtnText: { fontFamily: 'Inter-Bold', fontSize: 14, color: '#FFFFFF' },
 });

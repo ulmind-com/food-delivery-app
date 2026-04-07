@@ -1,13 +1,16 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Info } from 'lucide-react-native';
+import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Info, Clock, ChevronRight } from 'lucide-react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useCartStore } from '../store/useCartStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useTheme } from '../constants/ThemeContext';
 import { Button } from '../components/ui/Button';
 import { TicketCoupon } from '../components/TicketCoupon';
+
+const PRIMARY = '#FC8019';
 
 export default function CartScreen() {
   const { colors, isDark } = useTheme();
@@ -20,6 +23,7 @@ export default function CartScreen() {
     discountAmount,
     tax,
     finalPrice,
+    deliveryFee,
     incrementItem,
     decrementItem,
     clearCart,
@@ -34,8 +38,7 @@ export default function CartScreen() {
     }
   }, [isAuthenticated]);
 
-  const deliveryFee = 0; // Calculated at checkout
-  const toPay = finalPrice - deliveryFee;
+  const toPay = finalPrice;
 
   const handleCheckout = () => {
     if (!isAuthenticated()) {
@@ -81,10 +84,25 @@ export default function CartScreen() {
         )}
       </View>
 
-      {/* Loading State */}
+      {/* Loading State — Skeleton Loader */}
       {isLoading && items.length === 0 ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 20 }}>
+          {/* Delivery estimate skeleton */}
+          <Animated.View entering={FadeInDown.delay(50)} style={{ height: 48, borderRadius: 14, backgroundColor: colors.muted, marginBottom: 16, opacity: 0.5 }} />
+          {/* Item skeleton cards */}
+          {[1, 2, 3].map(i => (
+            <Animated.View entering={FadeInDown.delay(100 * i)} key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, marginBottom: 12, gap: 12 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: colors.muted, opacity: 0.4 }} />
+              <View style={{ flex: 1, gap: 8 }}>
+                <View style={{ width: '70%', height: 14, borderRadius: 4, backgroundColor: colors.muted, opacity: 0.4 }} />
+                <View style={{ width: '40%', height: 12, borderRadius: 4, backgroundColor: colors.muted, opacity: 0.3 }} />
+                <View style={{ width: '30%', height: 16, borderRadius: 4, backgroundColor: colors.muted, opacity: 0.4 }} />
+              </View>
+              <View style={{ width: 80, height: 32, borderRadius: 10, backgroundColor: colors.muted, opacity: 0.3 }} />
+            </Animated.View>
+          ))}
+          {/* Bill skeleton */}
+          <Animated.View entering={FadeInDown.delay(400)} style={{ borderRadius: 16, backgroundColor: colors.muted, opacity: 0.3, height: 160, marginTop: 8 }} />
         </View>
       ) : !isAuthenticated() || items.length === 0 ? (
         renderEmptyCart()
@@ -94,6 +112,12 @@ export default function CartScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
+            {/* Delivery Estimate Banner */}
+            <Animated.View entering={FadeInDown.delay(50).springify()} style={[styles.deliveryBanner, { backgroundColor: `${PRIMARY}10`, borderColor: `${PRIMARY}25` }]}>
+              <Clock size={16} color={PRIMARY} strokeWidth={2.5} />
+              <Text style={styles.deliveryBannerText}>Estimated delivery in <Text style={styles.deliveryBannerBold}>30-40 min</Text></Text>
+            </Animated.View>
+
             {/* Items List */}
             <View style={styles.itemsList}>
               {items.map((item) => (
@@ -147,6 +171,13 @@ export default function CartScreen() {
               ))}
             </View>
 
+            {/* Add More Items CTA */}
+            <TouchableOpacity style={styles.addMoreCta} onPress={() => router.replace('/(tabs)')}>
+              <Plus size={16} color={PRIMARY} strokeWidth={2.5} />
+              <Text style={styles.addMoreCtaText}>Add more items</Text>
+              <ChevronRight size={14} color={PRIMARY} style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+
             {/* Any delivery instructions block (placeholder) */}
             <View style={styles.containerPadding}>
               
@@ -199,25 +230,25 @@ export default function CartScreen() {
             </View>
           </ScrollView>
 
-          {/* Sticky Checkout Bottom Bar */}
-          <View style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
-            <TouchableOpacity style={[styles.checkoutBtn, { backgroundColor: colors.primary }]} onPress={handleCheckout}>
-              <View>
-                <Text style={[styles.checkoutBtnAmount, { color: colors.primaryForeground }]}>
-                  ₹{toPay.toFixed(2)}
-                </Text>
-                <Text style={[styles.checkoutBtnSub, { color: colors.primaryForeground }]}>
-                  TOTAL
-                </Text>
-              </View>
-              <View style={styles.checkoutBtnRight}>
-                <Text style={[styles.checkoutBtnText, { color: colors.primaryForeground }]}>
-                  PROCEED TO PAY
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
         </>
+      )}
+
+      {/* Sticky Checkout Bottom Bar — Premium */}
+      {items.length > 0 && (
+        <Animated.View entering={FadeInUp.delay(200)} style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+          <TouchableOpacity style={styles.checkoutBtn} onPress={handleCheckout} activeOpacity={0.85}>
+            <View>
+              <Text style={styles.checkoutBtnLabel}>TOTAL</Text>
+              <Text style={styles.checkoutBtnAmount}>
+                ₹{toPay.toFixed(0)}
+              </Text>
+            </View>
+            <View style={styles.checkoutBtnRight}>
+              <Text style={styles.checkoutBtnText}>PROCEED TO CHECKOUT</Text>
+              <Text style={styles.checkoutBtnArrow}>›</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
       )}
     </View>
   );
@@ -410,39 +441,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   bottomBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
     padding: 16,
-    paddingBottom: 32, // for safe area
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     borderTopWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 20,
   },
   checkoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 18,
+    backgroundColor: PRIMARY,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  checkoutBtnLabel: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: 1,
   },
   checkoutBtnAmount: {
     fontFamily: 'Inter-Black',
-    fontSize: 16,
-  },
-  checkoutBtnSub: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 10,
-    opacity: 0.8,
+    fontSize: 20,
+    color: '#FFFFFF',
+    lineHeight: 24,
   },
   checkoutBtnRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   checkoutBtnText: {
     fontFamily: 'Inter-Bold',
-    fontSize: 16,
-    letterSpacing: 0.5,
+    fontSize: 13,
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
+  checkoutBtnArrow: {
+    fontFamily: 'Inter-Black',
+    fontSize: 18,
+    color: '#FFFFFF',
+    lineHeight: 20,
+  },
+  deliveryBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16,
+    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14,
+    borderWidth: 1, marginBottom: 8,
+  },
+  deliveryBannerText: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#374151' },
+  deliveryBannerBold: { fontFamily: 'Inter-Black', color: PRIMARY },
+  addMoreCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, paddingVertical: 14, paddingHorizontal: 16,
+    marginBottom: 8, backgroundColor: `${PRIMARY}08`, borderRadius: 14,
+    borderWidth: 1, borderColor: `${PRIMARY}20`,
+  },
+  addMoreCtaText: { fontFamily: 'Inter-Bold', fontSize: 13, color: PRIMARY },
 });
