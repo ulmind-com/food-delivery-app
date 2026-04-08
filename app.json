@@ -33,7 +33,9 @@
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
         "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -45,6 +47,7 @@
       "expo-router",
       "expo-secure-store",
       "expo-location",
+      "react-native-maps",
       [
         "expo-notifications",
         {
@@ -58,8 +61,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "your-project-id"
-      }
-    }
+        "projectId": "800da9e5-3ad5-42dc-87b3-72214cef334d"
+      },
+      "router": {}
+    },
+    "owner": "samiran2004"
   }
 }
