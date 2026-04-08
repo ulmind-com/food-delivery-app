@@ -22,6 +22,7 @@
     },
     "android": {
       "package": "com.foodie.delivery",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#FC8019",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

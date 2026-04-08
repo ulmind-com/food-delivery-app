@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Video, ResizeMode } from 'expo-av';
 import { Search, MapPin, ChevronDown, Bell, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
@@ -227,10 +228,20 @@ function HeroBannerSection() {
                       } as any}
                     />
                   ) : (
-                    <Image
+                    <Video
                       source={{ uri: item.url }}
-                      style={styles.heroVideoImage}
-                      contentFit="cover"
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: 20 }}
+                      resizeMode={"cover"}
+                      shouldPlay={activeIdx === index}
+                      isLooping={carouselItems.length === 1}
+                      isMuted={true}
+                      onPlaybackStatusUpdate={(status: any) => {
+                        if (status.didJustFinish && !status.isLooping && carouselItems.length > 1 && activeIdx === index) {
+                          const nextIdx = (index + 1) % carouselItems.length;
+                          heroScrollRef.current?.scrollToIndex({ index: nextIdx, animated: true });
+                          setActiveIdx(nextIdx);
+                        }
+                      }}
                     />
                   )}
 
