@@ -13,7 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
+import { Video } from 'expo-av';
 import { Search, MapPin, ChevronDown, Bell, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
