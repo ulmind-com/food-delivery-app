@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView,
   Platform, TextInput, ScrollView, Image, ActivityIndicator, Dimensions, Pressable
@@ -19,6 +19,8 @@ const INPUT_BG = '#F9FAFB';
 export default function LoginScreen() {
   const router = useRouter();
   const loginFn = useAuthStore((s) => s.login);
+  const emailRef = useRef<TextInput>(null);
+  const pwdRef = useRef<TextInput>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -82,9 +84,13 @@ export default function LoginScreen() {
             {/* Email */}
             <Animated.View entering={FadeInDown.delay(300).springify().damping(16)}>
               <Text style={styles.label}>Email Address</Text>
-              <View style={[styles.inputWrap, emailFocused && styles.inputFocused]}>
+              <Pressable 
+                onPress={() => emailRef.current?.focus()}
+                style={[styles.inputWrap, emailFocused && styles.inputFocused]}
+              >
                 <Mail size={20} color={emailFocused ? PRIMARY : MUTED} />
                 <TextInput
+                  ref={emailRef}
                   style={styles.input}
                   placeholder="name@example.com"
                   placeholderTextColor="#A1A1AA"
@@ -95,15 +101,19 @@ export default function LoginScreen() {
                   onFocus={() => setEmailFocused(true)}
                   onBlur={() => setEmailFocused(false)}
                 />
-              </View>
+              </Pressable>
             </Animated.View>
 
             {/* Password */}
             <Animated.View entering={FadeInDown.delay(400).springify().damping(16)}>
               <Text style={styles.label}>Password</Text>
-              <View style={[styles.inputWrap, pwdFocused && styles.inputFocused]}>
+              <Pressable 
+                onPress={() => pwdRef.current?.focus()}
+                style={[styles.inputWrap, pwdFocused && styles.inputFocused]}
+              >
                 <Lock size={20} color={pwdFocused ? PRIMARY : MUTED} />
                 <TextInput
+                  ref={pwdRef}
                   style={styles.input}
                   placeholder="••••••••"
                   placeholderTextColor="#A1A1AA"
@@ -116,7 +126,7 @@ export default function LoginScreen() {
                 <Pressable onPress={() => setShowPwd(!showPwd)} hitSlop={15}>
                   {showPwd ? <EyeOff size={20} color={MUTED} /> : <Eye size={20} color={MUTED} />}
                 </Pressable>
-              </View>
+              </Pressable>
               <TouchableOpacity style={styles.forgotBtn}>
                 <Text style={styles.forgotLabel}>Forgot Password?</Text>
               </TouchableOpacity>

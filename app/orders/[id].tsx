@@ -56,7 +56,7 @@ const SkeletonItem = ({ heightStyle }: { heightStyle: number }) => {
   return <Animated.View style={[styles.skeleton, animStyle, { height: heightStyle }]} />;
 };
 
-export default function OrderTrackingScreen() {
+function OrderTrackingScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
 
@@ -660,3 +660,5 @@ const styles = StyleSheet.create({
   btnSolid: { backgroundColor: PRIMARY, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   btnSolidText: { fontFamily: 'Inter-Bold', fontSize: 14, color: '#FFFFFF' },
 });
+
+export default OrderTrackingScreen;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView,
   Platform, TextInput, ScrollView, Image, ActivityIndicator, Dimensions, Pressable
@@ -27,6 +27,7 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [focusField, setFocusField] = useState<string | null>(null);
+  const inputRefs = useRef<Record<string, TextInput | null>>({});
 
   const handleRegister = async () => {
     if (!name.trim() || !email.trim() || !mobile.trim() || !password.trim()) {
@@ -54,9 +55,13 @@ export default function RegisterScreen() {
     return (
       <Animated.View entering={FadeInDown.delay(config.delay).springify().damping(16)}>
         <Text style={styles.label}>{config.label}</Text>
-        <View style={[styles.inputWrap, isFocused && styles.inputFocused]}>
+        <Pressable 
+          onPress={() => inputRefs.current[field]?.focus()}
+          style={[styles.inputWrap, isFocused && styles.inputFocused]}
+        >
           {icon}
           <TextInput
+            ref={(r) => { inputRefs.current[field] = r; }}
             style={styles.input}
             placeholder={placeholder}
             placeholderTextColor="#A1A1AA"
@@ -73,7 +78,7 @@ export default function RegisterScreen() {
               {showPwd ? <EyeOff size={20} color={MUTED} /> : <Eye size={20} color={MUTED} />}
             </Pressable>
           )}
-        </View>
+        </Pressable>
       </Animated.View>
     );
   };

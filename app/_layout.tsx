@@ -76,6 +76,7 @@ function RootLayoutInner() {
       {showAnimatedSplash && (
         <Animated.View
           exiting={FadeOut.duration(500)}
+          pointerEvents={fontsLoaded && !authLoading ? 'none' : 'auto'}
           style={[StyleSheet.absoluteFillObject, { backgroundColor: '#FFF5EC', zIndex: 9999, alignItems: 'center', justifyContent: 'center' }]}
         >
           <LottieView
@@ -106,21 +107,12 @@ function RootLayoutInner() {
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="(auth)/welcome" options={{ animation: 'fade' }} />
-        <Stack.Screen
-          name="(auth)/login"
-          options={{ animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="(auth)/register"
-          options={{ animation: 'slide_from_bottom' }}
-        />
+        <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="checkout" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="cart" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="addresses" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="orders/[id]" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="chat" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>

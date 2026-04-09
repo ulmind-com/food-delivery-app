@@ -48,7 +48,6 @@
       "expo-router",
       "expo-secure-store",
       "expo-location",
-      "react-native-maps",
       [
         "expo-notifications",
         {
