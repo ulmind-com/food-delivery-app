@@ -155,8 +155,8 @@ function HeroBannerSection() {
     if (!hasItems || carouselItems.length <= 1) return;
 
     const currentItem = carouselItems[activeIdx];
-    // If it's a web video, let the video's onEnded event handle the auto-swap
-    if (Platform.OS === 'web' && currentItem.type === 'video') return;
+    // Let the video component handle its own completion (both web and mobile)
+    if (currentItem.type === 'video') return;
 
     // Otherwise, auto-swap after 5 seconds
     const timer = setInterval(() => {
