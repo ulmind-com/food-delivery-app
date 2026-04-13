@@ -55,7 +55,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" bounces={false}>
           
           {/* OP Hero Area */}
@@ -154,14 +154,14 @@ export default function LoginScreen() {
           </View>
 
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+  scrollContent: { flexGrow: 1, paddingBottom: 250 },
   
   // OP Hero
   heroArea: {

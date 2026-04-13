@@ -14,26 +14,49 @@ export default function OrderSuccessScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    // Play Zomato-style success sound (clean minimal chime)
+    let soundObj: Audio.Sound | null = null;
+    let fallbackTimer: NodeJS.Timeout;
+
     const playSound = async () => {
       try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
         const { sound } = await Audio.Sound.createAsync(
-          { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' }
+          require('../assets/sounds/zomato.mp3')
         );
-        await sound.setVolumeAsync(0.6);
+        soundObj = sound;
+
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish) {
+            clearTimeout(fallbackTimer);
+            // Add a tiny buffer after sound ends before switching screens
+            setTimeout(navigateToTracking, 400);
+          }
+        });
+
+        await sound.setVolumeAsync(1.0);
         await sound.playAsync();
       } catch (error) {
         console.warn("Could not play sound", error);
+        // If sound fails, fallback to standard timer
+        fallbackTimer = setTimeout(navigateToTracking, 3000);
       }
     };
+
     playSound();
 
-    // Auto navigate to tracker after some time
-    const timer = setTimeout(() => {
-      navigateToTracking();
-    }, 4500);
+    // Fallback timer just in case audio gets stuck
+    fallbackTimer = setTimeout(navigateToTracking, 7000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(fallbackTimer);
+      if (soundObj) {
+        soundObj.unloadAsync().catch(() => {});
+      }
+    };
   }, []);
 
   const navigateToTracking = () => {

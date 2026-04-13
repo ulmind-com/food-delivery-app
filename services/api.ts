@@ -63,7 +63,7 @@ export const userApi = {
   addAddress: (data: any) => api.post('/users/addresses', data),
   updateAddress: (id: string, data: any) => api.put(`/users/addresses/${id}`, data),
   deleteAddress: (id: string) => api.delete(`/users/addresses/${id}`),
-  selectAddress: (id: string) => api.put(`/users/addresses/${id}/select`),
+  selectAddress: (data: any) => api.put('/users/addresses/select', typeof data === 'string' ? { addressId: data } : data),
   reverseGeocode: (lat: number, lng: number) =>
     api.get(`/users/addresses/reverse-geocode?lat=${lat}&lng=${lng}`),
 };
@@ -129,7 +129,7 @@ export const chatApi = {
 
 export const uploadApi = {
   uploadImage: (formData: FormData) =>
-    api.post('/upload/image', formData, {
+    api.post('/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 };

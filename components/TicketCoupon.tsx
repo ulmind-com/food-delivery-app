@@ -1,12 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { Percent, CheckCircle2, Ticket, X, Copy, Sparkles } from 'lucide-react-native';
-import Animated, { FadeInDown, SlideInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, SlideInDown, FadeIn, FadeOut, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import LottieView from 'lottie-react-native';
 import { useTheme } from '../constants/ThemeContext';
 import { useCartStore } from '../store/useCartStore';
 import { couponApi } from '../services/api';
 
 const PRIMARY = '#FC8019';
+
+function CouponSkeleton() {
+  const shimmer = useSharedValue(0.3);
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withSequence(withTiming(1, { duration: 800 }), withTiming(0.3, { duration: 800 })),
+      -1, false
+    );
+  }, []);
+  const animStyle = useAnimatedStyle(() => ({ opacity: shimmer.value }));
+  return (
+    <Animated.View style={[{ width: '100%', height: 120, borderRadius: 16, backgroundColor: '#F0F0F5' }, animStyle]} />
+  );
+}
+
+// Global cache for instant zero-delay loading across screens
+let cachedCoupons: any[] | null = null;
 
 export function TicketCoupon() {
   const { colors, isDark } = useTheme();
@@ -17,6 +35,8 @@ export function TicketCoupon() {
   const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
   const [showManualInput, setShowManualInput] = useState(false);
   const [fetchingCoupons, setFetchingCoupons] = useState(true);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const lottieRef = useRef<LottieView>(null);
   
   const { appliedCoupon, applyCoupon, removeCoupon, totalPrice } = useCartStore();
 
@@ -25,8 +45,24 @@ export function TicketCoupon() {
   }, []);
 
   const fetchCoupons = async () => {
+    // 🚀 STALE-WHILE-REVALIDATE CACHING: Instantly load if cached!
+    if (cachedCoupons) {
+      setAvailableCoupons(cachedCoupons);
+      setFetchingCoupons(false);
+      // Still fetch in background to verify freshness
+      couponApi.getAll()
+        .then(res => {
+          cachedCoupons = res.data;
+          setAvailableCoupons(res.data);
+        })
+        .catch(console.error);
+      return;
+    }
+
+    // Normal fetch if no cache
     try {
       const res = await couponApi.getAll();
+      cachedCoupons = res.data;
       setAvailableCoupons(res.data);
       if (res.data.length === 0) {
         setShowManualInput(true);
@@ -46,6 +82,8 @@ export function TicketCoupon() {
       setError('');
       await applyCoupon(codeToApply.toUpperCase().trim());
       setCouponCode('');
+      // 🎉 Trigger celebration!
+      setShowCelebration(true);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid coupon code');
     } finally {
@@ -97,30 +135,46 @@ export function TicketCoupon() {
   // APPLIED STATE
   if (appliedCoupon) {
     return (
-      <Animated.View entering={FadeInDown.springify()} style={[styles.appliedWrapper, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.15)' : '#ecfdf5', borderColor: '#86efac' }]}>
-        <View style={styles.appliedContent}>
-          <View style={styles.appliedLeft}>
-            <Sparkles size={16} color="#16a34a" />
-            <View>
-              <Text style={[styles.codeText, { color: '#16a34a' }]}>
-                "{appliedCoupon.code}" <Text style={styles.appliedText}>applied!</Text>
-              </Text>
-              <Text style={[styles.discountText, { color: '#15803d' }]}>
-                You save ₹{Math.round(appliedCoupon.discountAmount)}
-              </Text>
+      <View style={styles.celebrateContainer}>
+        <Animated.View entering={FadeInDown.springify()} style={[styles.appliedWrapper, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.15)' : '#ecfdf5', borderColor: '#86efac' }]}>
+          <View style={styles.appliedContent}>
+            <View style={styles.appliedLeft}>
+              <Sparkles size={16} color="#16a34a" />
+              <View>
+                <Text style={[styles.codeText, { color: '#16a34a' }]}>
+                  "{appliedCoupon.code}" <Text style={styles.appliedText}>applied!</Text>
+                </Text>
+                <Text style={[styles.discountText, { color: '#15803d' }]}>
+                  You save ₹{Math.round(appliedCoupon.discountAmount)}
+                </Text>
+              </View>
             </View>
+            <TouchableOpacity onPress={handleRemove} disabled={loading} style={styles.removeBtn}>
+              {loading ? (
+                <ActivityIndicator size="small" color="#16a34a" />
+              ) : (
+               <View style={styles.removeIconBg}>
+                  <X size={16} color="#15803d" />
+               </View>
+              )}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={handleRemove} disabled={loading} style={styles.removeBtn}>
-            {loading ? (
-              <ActivityIndicator size="small" color="#16a34a" />
-            ) : (
-             <View style={styles.removeIconBg}>
-                <X size={16} color="#15803d" />
-             </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
+        </Animated.View>
+        {/* 🎉 Lottie Celebration Overlay */}
+        {showCelebration && (
+          <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(400)} style={styles.lottieOverlay} pointerEvents="none">
+            <LottieView
+              ref={lottieRef}
+              source={require('../assets/lottie/celebrate.json')}
+              autoPlay
+              loop={false}
+              style={styles.lottieAnimation}
+              speed={1.5}
+              onAnimationFinish={() => setShowCelebration(false)}
+            />
+          </Animated.View>
+        )}
+      </View>
     );
   }
 
@@ -133,14 +187,13 @@ export function TicketCoupon() {
   
   return (
     <View style={styles.container}>
+      {/* ─── Skeleton Loader while fetching API ─── */}
+      {fetchingCoupons && <CouponSkeleton />}
+
       {/* ─── BEST OFFER TICKET (Matches web OP design perfectly) ─── */}
       {!fetchingCoupons && bestCoupon && !showManualInput && (
         <Animated.View entering={FadeInDown.duration(400)}>
           <View style={[styles.bestOfferCard, { backgroundColor: bgColor }]}>
-            {/* Notches logic to blend with background (usually white) */}
-            <View style={[styles.notch, styles.notchLeft, { backgroundColor: colors.background }]} />
-            <View style={[styles.notch, styles.notchRight, { backgroundColor: colors.background }]} />
-
             <View style={styles.bestOfferInner}>
               <View style={styles.bestOfferLeft}>
                 <View style={styles.bestOfferHeader}>
@@ -162,9 +215,16 @@ export function TicketCoupon() {
                 )}
               </View>
 
-              {/* Vertical Dashed Divider */}
-              <View style={styles.dividerContainer}>
-                <View style={[styles.dashedDivider, { borderColor: eligible ? 'rgba(120, 53, 15, 0.25)' : (isDark ? '#374151' : '#D1D5DB') }]} />
+              {/* Divider area with U-shape notches */}
+              <View style={styles.dividerArea}>
+                {/* Top notch */}
+                <View style={[styles.notch, styles.notchTop]} />
+                {/* Dashed line */}
+                <View style={styles.dividerWrap}>
+                  <View style={[styles.verticalDashItem, { borderColor: eligible ? 'rgba(120, 53, 15, 0.35)' : (isDark ? '#4B5563' : '#D1D5DB') }]} />
+                </View>
+                {/* Bottom notch */}
+                <View style={[styles.notch, styles.notchBottom]} />
               </View>
 
               <View style={styles.bestOfferRight}>
@@ -180,7 +240,7 @@ export function TicketCoupon() {
                     <TouchableOpacity 
                       onPress={() => handleApply(bestCoupon.code)}
                       disabled={loading}
-                      style={styles.applyActionBtn}
+                      style={[styles.applyActionBtn, { backgroundColor: eligible ? '#451A03' : '#1A1A1A' }]}
                       activeOpacity={0.8}
                     >
                       <Text style={styles.applyActionText}>APPLY</Text>
@@ -198,7 +258,7 @@ export function TicketCoupon() {
             
             {/* Loading overlay during apply */}
             {loading && (
-              <View style={styles.loadingOverlay}>
+              <View style={[StyleSheet.absoluteFillObject, styles.loadingOverlay]}>
                 <ActivityIndicator size="large" color={textColor} />
               </View>
             )}
@@ -265,6 +325,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 16,
     borderWidth: 0,
+    overflow: 'hidden',
   },
   bestOfferInner: {
     flexDirection: 'row',
@@ -303,16 +364,41 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     fontSize: 11,
   },
-  dividerContainer: {
-    justifyContent: 'center',
+  dividerArea: {
+    width: 24,
+    alignSelf: 'stretch',
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    position: 'relative',
+    zIndex: 5,
   },
-  dashedDivider: {
-    width: 1,
-    height: '100%',
+  notch: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    position: 'absolute',
+    left: 0,
+    zIndex: 10,
+  },
+  notchTop: {
+    top: -12,
+  },
+  notchBottom: {
+    bottom: -12,
+  },
+  dividerWrap: {
+    width: 2,
+    flex: 1,
+    overflow: 'hidden',
+    marginVertical: 2,
+  },
+  verticalDashItem: {
+    flex: 1,
+    width: 0,
     borderWidth: 1,
     borderStyle: 'dashed',
+    borderRadius: 1,
   },
   bestOfferRight: {
     width: 110,
@@ -460,11 +546,23 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 6,
   },
-  notch: {
-    position: 'absolute', top: '50%', marginTop: -12,
-    width: 24, height: 24, borderRadius: 12,
-    zIndex: 10,
+
+  // Celebration Animation
+  celebrateContainer: {
+    position: 'relative',
   },
-  notchLeft: { left: -12 },
-  notchRight: { right: -12 },
+  lottieOverlay: {
+    position: 'absolute',
+    top: -100,
+    left: -40,
+    right: -40,
+    bottom: -100,
+    zIndex: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lottieAnimation: {
+    width: '100%',
+    height: '100%',
+  },
 });

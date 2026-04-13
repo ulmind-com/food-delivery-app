@@ -7,9 +7,10 @@ import { Stack, useRouter } from 'expo-router';
 import { ArrowLeft, User as UserIcon, Mail, Phone, Camera, Check } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '../store/useAuthStore';
-import { userApi } from '../services/api';
+import { userApi, uploadApi } from '../services/api';
 import { resolveImageURL } from '../lib/image-utils';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 
 const PRIMARY = '#FC8019';
 const TEXT_COLOR = '#1A1A1A';
@@ -25,6 +26,59 @@ export default function EditProfileScreen() {
   const [mobile, setMobile] = useState(user?.mobile || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [freshImage, setFreshImage] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  useEffect(() => {
+    userApi.getProfile()
+      .then((res) => {
+        const profile = res.data?.user || res.data;
+        if (profile?.profileImage) {
+          setFreshImage(profile.profileImage);
+        }
+      })
+      .catch((err) => console.log('Error fetching fresh profile:', err));
+  }, []);
+
+  const displayImage = freshImage || user?.profileImage;
+
+  const handleImageUpload = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setUploadingImage(true);
+        const asset = result.assets[0];
+
+        // Format for React Native multipart form data
+        const formData = new FormData();
+        formData.append('image', {
+          uri: asset.uri,
+          name: asset.fileName || 'profile.jpg',
+          type: asset.mimeType || 'image/jpeg',
+        } as any);
+
+        const uploadRes = await uploadApi.uploadImage(formData);
+        const imageUrl = uploadRes.data?.url || uploadRes.data?.imageURL || uploadRes.data?.image;
+
+        if (imageUrl) {
+          await userApi.updateProfile({ profileImage: imageUrl });
+          setUser({ ...user, profileImage: imageUrl } as any);
+          setFreshImage(imageUrl);
+        }
+      }
+    } catch (err: any) {
+      console.log('Error uploading image:', err);
+      // Silent catch, or show alert
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim() || !mobile.trim()) {
@@ -64,15 +118,15 @@ export default function EditProfileScreen() {
           
           <Animated.View entering={FadeInDown.delay(50).springify()} style={styles.avatarContainer}>
             <View style={styles.avatarRing}>
-              {user?.profileImage ? (
-                <Image source={{ uri: resolveImageURL(user.profileImage) }} style={styles.avatarImage} />
+              {displayImage ? (
+                <Image source={{ uri: resolveImageURL(displayImage) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={styles.avatarInitial}>{user?.name?.charAt(0).toUpperCase() || 'U'}</Text>
                 </View>
               )}
-              <TouchableOpacity style={styles.cameraBtn}>
-                <Camera size={16} color="#FFFFFF" />
+              <TouchableOpacity style={styles.cameraBtn} onPress={handleImageUpload} disabled={uploadingImage}>
+                {uploadingImage ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Camera size={16} color="#FFFFFF" />}
               </TouchableOpacity>
             </View>
           </Animated.View>

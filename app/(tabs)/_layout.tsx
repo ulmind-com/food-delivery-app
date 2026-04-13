@@ -118,7 +118,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       
       <View style={styles.tabBarInner}>
         {state.routes.map((route: any, index: number) => {
-          if (route.name === 'two') return null;
+          if (route.name === 'two' || route.name === 'profile') return null;
 
           const { options } = descriptors[route.key];
           const label =
@@ -187,7 +187,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          href: null,
         }}
       />
       <Tabs.Screen

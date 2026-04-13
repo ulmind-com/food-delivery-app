@@ -11,10 +11,12 @@ import {
   FlatList,
   Pressable,
   Platform,
+  TextInput,
 } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Video } from 'expo-av';
-import { Search, MapPin, ChevronDown, Bell, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift } from 'lucide-react-native';
+import { Search, MapPin, ChevronDown, Bell, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift, Heart, User } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -30,16 +32,18 @@ import Animated, {
   SlideInRight,
 } from 'react-native-reanimated';
 import LottieView from 'lottie-react-native';
-import { menuApi, restaurantApi, couponApi } from '../../services/api';
+import { menuApi, restaurantApi, couponApi, userApi } from '../../services/api';
 import { ProductCard } from '../../components/ProductCard';
 import { ProductDetailSheet } from '../../components/ProductDetailSheet';
 import { FloatingCartBar } from '../../components/FloatingCartBar';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useCartStore } from '../../store/useCartStore';
+import { useLocationStore } from '../../store/useLocationStore';
 import { resolveImageURL } from '../../lib/image-utils';
 
 const { width } = Dimensions.get('window');
 const PRIMARY = '#FC8019';
+const PRIMARY_LIGHT = '#FFF7ED';
 const CARD_WIDTH = width - 32;
 
 // ─── Static Promo Fallbacks (shown when no hero videos) ──
@@ -185,7 +189,8 @@ function HeroBannerSection() {
           ref={heroScrollRef}
           data={carouselItems}
           horizontal
-          pagingEnabled
+          snapToInterval={CARD_WIDTH}
+          decelerationRate="fast"
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={(e) => {
             setActiveIdx(Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH));
@@ -347,7 +352,8 @@ function HeroBannerSection() {
         ref={scrollRef}
         data={PROMOS}
         horizontal
-        pagingEnabled
+        snapToInterval={CARD_WIDTH}
+        decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(e) => {
           setActiveIdx(Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH));
@@ -379,18 +385,22 @@ function HeroBannerSection() {
 
 // ─── Category Item ─────────────────────────────────────
 function CategoryItem({ item, isSelected, onSelect, index }: any) {
-  const imageUrl = resolveImageURL(item.image || item.imageURL);
+  const imageUrl = item.name === 'All' ? null : resolveImageURL(item.image || item.imageURL);
   return (
     <Animated.View entering={FadeInRight.delay(index * 80).duration(400)}>
       <Pressable
         onPress={() => onSelect(item._id)}
         style={[styles.catItem, isSelected && styles.catItemSelected]}
       >
-        <View style={[styles.catImageWrap, isSelected && styles.catImageWrapSelected]}>
+        <View style={[
+          styles.catImageWrap, 
+          item.name === 'All' && { borderColor: '#FC8019', backgroundColor: '#FFF7ED', borderWidth: 2.5 },
+          isSelected && styles.catImageWrapSelected
+        ]}>
           {imageUrl ? (
             <Image source={{ uri: imageUrl }} style={styles.catImage} contentFit="cover" />
           ) : (
-            <View style={styles.catImagePlaceholder}>
+            <View style={[styles.catImagePlaceholder, item.name === 'All' && { backgroundColor: 'transparent' }]}>
               <Text style={{ fontSize: 28 }}>🍽️</Text>
             </View>
           )}
@@ -407,8 +417,24 @@ function CategoryItem({ item, isSelected, onSelect, index }: any) {
 //  MAIN HOME SCREEN
 // ═════════════════════════════════════════════════════════
 export default function HomeScreen() {
-  const userName = useAuthStore((s) => s.user?.name);
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const userName = user?.name;
+  const userImage = user?.profileImage;
   const cartItems = useCartStore((s) => s.items);
+  const { selectedAddress } = useLocationStore();
+
+  const locationLabel = selectedAddress
+    ? selectedAddress.type === "HOME"
+      ? "Home"
+      : selectedAddress.type === "WORK"
+        ? "Work"
+        : selectedAddress.addressLine1?.split(",")[0]?.trim() || "My Location"
+    : userName ? `Hi, ${userName.split(' ')[0]}!` : 'Deliver to';
+
+  const locationSub = selectedAddress
+    ? [selectedAddress.city, selectedAddress.state].filter(Boolean).join(", ")
+    : "Tap to set delivery location";
 
   const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -416,6 +442,10 @@ export default function HomeScreen() {
   const [isVegOnly, setIsVegOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fssaiLicense, setFssaiLicense] = useState<string | null>(null);
+  const [freshImage, setFreshImage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<TextInput>(null);
 
   // Search placeholder animation
   const placeholders = ['Pizza', 'Biryani', 'Burger', 'Ice Cream', 'Rolls', 'Chowmin'];
@@ -423,21 +453,34 @@ export default function HomeScreen() {
 
   const fetchHomeData = async () => {
     try {
-      const [catRes, prodRes] = await Promise.all([
+      const [catRes, prodRes, restRes, profileRes] = await Promise.all([
         menuApi.getCategories(),
         menuApi.getMenu(),
+        restaurantApi.get().catch(() => null),
+        userApi.getProfile().catch(() => null),
       ]);
       setCategories(catRes.data);
       setProducts(prodRes.data);
-    } catch (e) {
-      console.log('Error fetching home data:', e);
+      if (restRes?.data?.fssaiLicense) {
+        setFssaiLicense(restRes.data.fssaiLicense);
+      }
+      const profileData = profileRes?.data?.user || profileRes?.data;
+      if (profileData?.profileImage) {
+        setFreshImage(profileData.profileImage);
+      }
+    } catch (error) {
+      console.log('Error fetching home data:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => { fetchHomeData(); }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchHomeData();
+    }, [])
+  );
   useEffect(() => {
     const interval = setInterval(() => {
       setPlaceholderIndex(prev => (prev + 1) % placeholders.length);
@@ -452,6 +495,16 @@ export default function HomeScreen() {
 
   const getFilteredProducts = () => {
     let result = products;
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((p: any) => {
+        const name = (p.name || '').toLowerCase();
+        const desc = (p.description || '').toLowerCase();
+        const catName = (typeof p.category === 'object' ? p.category?.name || '' : '').toLowerCase();
+        return name.includes(q) || desc.includes(q) || catName.includes(q);
+      });
+    }
     if (selectedCategory) {
       result = result.filter((p: any) =>
         (typeof p.category === 'object' ? p.category._id : p.category) === selectedCategory
@@ -474,28 +527,54 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {/* ─── HEADER ─── */}
       <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
-        <View style={styles.headerLeft}>
+        <TouchableOpacity style={styles.headerLeft} activeOpacity={0.7} onPress={() => router.push('/location-picker')}>
           <View style={styles.locationRow}>
             <MapPin size={18} color={PRIMARY} fill={PRIMARY} />
             <Text style={styles.headerLocationTitle}>
-              {userName ? `Hi, ${userName.split(' ')[0]}!` : 'Deliver to'}
+              {locationLabel}
             </Text>
             <ChevronDown size={16} color="#3D4152" />
           </View>
           <Text style={styles.headerLocationSub} numberOfLines={1}>
-            Siliguri, West Bengal 🇮🇳
+            {locationSub}
           </Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerIconBtn}>
             <Bell size={20} color="#3D4152" />
             <View style={styles.notifDot} />
           </TouchableOpacity>
-          <View style={styles.avatarCircle}>
-            <Text style={{ fontSize: 18 }}>🍟</Text>
-          </View>
+          <TouchableOpacity style={styles.avatarCircle} onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.7}>
+            {freshImage || userImage ? (
+              <Image source={{ uri: resolveImageURL(freshImage || userImage) }} style={styles.headerAvatarImg} contentFit="cover" />
+            ) : (
+              <User size={18} color={PRIMARY} strokeWidth={2.2} />
+            )}
+          </TouchableOpacity>
         </View>
       </Animated.View>
+
+      {/* ─── STICKY SEARCH BAR ─── */}
+      <View style={styles.stickySearchWrap}>
+        <View style={styles.searchBar}>
+          <Search size={20} color="#9CA3AF" />
+          <TextInput
+            ref={searchInputRef}
+            style={styles.searchInput}
+            placeholder={`Search "${placeholders[placeholderIndex]}"`}
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => { setSearchQuery(''); searchInputRef.current?.blur(); }} style={styles.searchClearBtn}>
+              <Text style={styles.searchClearText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -505,15 +584,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ─── SEARCH BAR ─── */}
-        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.searchWrap}>
-          <Pressable style={styles.searchBar}>
-            <Search size={20} color="#9CA3AF" />
-            <Text style={styles.searchPlaceholder}>
-              Search "<Text style={styles.searchHighlight}>{placeholders[placeholderIndex]}</Text>"
-            </Text>
-          </Pressable>
-        </Animated.View>
 
         {loading ? (
           <HomeSkeletonLoader />
@@ -612,6 +682,34 @@ export default function HomeScreen() {
                 )}
               </View>
             </View>
+
+            {/* ─── CREATOR FOOTER ─── */}
+            <View style={styles.footerSection}>
+              <View style={styles.footerInner}>
+                <Text style={styles.liveText}>Live</Text>
+                <Text style={styles.itUpText}>it up!</Text>
+                <View style={styles.craftedRow}>
+                   <Text style={styles.craftedText}>Crafted with </Text>
+                   <Heart size={16} fill="#EF4444" color="#EF4444" />
+                   <Text style={styles.craftedText}> in Kolkata, India</Text>
+                </View>
+
+                {/* ─── FSSAI License ─── */}
+                {fssaiLicense ? (
+                  <View style={styles.fssaiContainer}>
+                    <View style={styles.fssaiDivider} />
+                    <View style={styles.fssaiBadge}>
+                      <Image
+                        source={require('../../assets/logo/fssai-logo-fssai-icon-free-free-vector-removebg-preview.png')}
+                        style={styles.fssaiLogo}
+                        contentFit="contain"
+                      />
+                      <Text style={styles.fssaiLicenseText}>License No. {fssaiLicense}</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            </View>
           </>
         )}
       </ScrollView>
@@ -654,23 +752,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7F7F7', alignItems: 'center', justifyContent: 'center',
   },
   notifDot: {
-    position: 'absolute', top: 8, right: 9,
-    width: 7, height: 7, borderRadius: 4, backgroundColor: '#FC8019',
+    position: 'absolute', top: 1, right: 3, width: 8, height: 8,
+    borderRadius: 4, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: '#FFFFFF',
   },
   avatarCircle: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#FFF3E0', borderWidth: 2, borderColor: PRIMARY,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: PRIMARY_LIGHT, borderWidth: 1.5, borderColor: '#FDDCB5',
     alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
   },
-  scrollContent: { paddingBottom: 100 },
-  // Search
-  searchWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  headerAvatarImg: {
+    width: '100%', height: '100%',
+  },
+  scrollContent: { paddingBottom: 0 },
+  // Search (Sticky)
+  stickySearchWrap: {
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1, borderBottomColor: '#F3F3F3',
+  },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#F7F7F7', borderRadius: 14,
-    paddingHorizontal: 16, height: 48,
+    paddingHorizontal: 16, height: 46,
     borderWidth: 1, borderColor: '#EBEBEB',
   },
+  searchInput: {
+    flex: 1, fontFamily: 'Inter-Medium', fontSize: 15, color: '#1A1A1A',
+    height: '100%', paddingVertical: 0,
+  },
+  searchClearBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center',
+  },
+  searchClearText: { fontFamily: 'Inter-Bold', fontSize: 12, color: '#6B7280' },
   searchPlaceholder: { fontFamily: 'Inter-Medium', fontSize: 15, color: '#9CA3AF' },
   searchHighlight: { color: PRIMARY, fontFamily: 'Inter-Bold' },
   // Promo Banners
@@ -766,7 +881,65 @@ const styles = StyleSheet.create({
   productGrid: {},
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyTitle: { fontFamily: 'Inter-Bold', fontSize: 18, color: '#3D4152' },
-  emptySub: { fontFamily: 'Inter-Medium', fontSize: 14, color: '#93959F', marginTop: 4 },
+  emptySub: { fontFamily: 'Inter-Medium', fontSize: 14, color: '#93959F', textAlign: 'center', marginTop: 6, lineHeight: 20 },
+
+  // Footer Section
+  footerSection: { 
+    paddingHorizontal: 16,
+    paddingVertical: 30, 
+    paddingBottom: 90, // Acts as the scroll clearance to hide the white background gap
+    backgroundColor: '#F3F4F6',
+    marginTop: 20
+  },
+  footerInner: {
+    alignItems: 'flex-start',
+  },
+  liveText: { 
+    fontFamily: 'Inter-Black', 
+    fontSize: 70, 
+    color: '#9CA3AF', 
+    letterSpacing: -2, 
+    lineHeight: 70 
+  },
+  itUpText: { 
+    fontFamily: 'Inter-Black', 
+    fontSize: 70, 
+    color: '#6B7280', 
+    letterSpacing: -2, 
+    lineHeight: 70, 
+    marginTop: -5 
+  },
+  craftedRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 24 
+  },
+  craftedText: { 
+    fontFamily: 'Inter-Bold', 
+    fontSize: 16, 
+    color: '#6B7280' 
+  },
+
+  // FSSAI License Badge
+  fssaiContainer: { marginTop: 32, alignSelf: 'stretch' },
+  fssaiDivider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 24 },
+  fssaiBadge: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 18, paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  fssaiLogo: {
+    width: 60, height: 30,
+    opacity: 0.45,
+    marginRight: 14,
+  },
+  fssaiLicenseText: {
+    fontFamily: 'Inter-Medium', fontSize: 14,
+    color: '#9CA3AF', letterSpacing: 0.3,
+    lineHeight: 20,
+  },
+
   // Hero Video Section
   heroVideoContainer: { paddingHorizontal: 16, marginTop: 16 },
   heroVideoCard: {

@@ -4,22 +4,36 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import Animated from 'react-native-reanimated';
 
 export default function MapComponent({ restaurantLat, restaurantLng, userLat, userLng, routeCoords, isActive, animatedPulseStyle }: any) {
+  // Safety: validate all coordinates are real numbers before rendering
+  const rLat = Number(restaurantLat);
+  const rLng = Number(restaurantLng);
+  const uLat = Number(userLat);
+  const uLng = Number(userLng);
+
+  if (!isFinite(rLat) || !isFinite(rLng) || !isFinite(uLat) || !isFinite(uLng)) {
+    return (
+      <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' }]}>
+        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 13, color: '#9CA3AF' }}>Map coordinates unavailable</Text>
+      </View>
+    );
+  }
+
   return (
     <MapView
       style={StyleSheet.absoluteFillObject}
       initialRegion={{
-        latitude: (restaurantLat + userLat) / 2,
-        longitude: (restaurantLng + userLng) / 2,
-        latitudeDelta: Math.abs(restaurantLat - userLat) * 1.6 + 0.015,
-        longitudeDelta: Math.abs(restaurantLng - userLng) * 1.6 + 0.015,
+        latitude: (rLat + uLat) / 2,
+        longitude: (rLng + uLng) / 2,
+        latitudeDelta: Math.abs(rLat - uLat) * 1.6 + 0.015,
+        longitudeDelta: Math.abs(rLng - uLng) * 1.6 + 0.015,
       }}
     >
-      <Marker coordinate={{ latitude: restaurantLat, longitude: restaurantLng }}>
+      <Marker coordinate={{ latitude: rLat, longitude: rLng }}>
         <View style={styles.restMarker}>
           <Text style={{ fontSize: 16 }}>🍽️</Text>
         </View>
       </Marker>
-      <Marker coordinate={{ latitude: userLat, longitude: userLng }}>
+      <Marker coordinate={{ latitude: uLat, longitude: uLng }}>
         <View style={styles.userMarker}>
           {isActive && <Animated.View style={[styles.pulsingUserMarker, animatedPulseStyle]} />}
           <View style={styles.userDotMarker}>
@@ -27,7 +41,7 @@ export default function MapComponent({ restaurantLat, restaurantLng, userLat, us
           </View>
         </View>
       </Marker>
-      {routeCoords.length > 0 && (
+      {Array.isArray(routeCoords) && routeCoords.length > 0 && (
         <Polyline 
           coordinates={routeCoords} 
           strokeWidth={4} 

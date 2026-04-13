@@ -6,7 +6,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import {
   Clock, ChevronRight, Package, Bike, CheckCircle2,
-  XCircle, ShoppingBag, MessageSquare, ChefHat
+  XCircle, ShoppingBag, MessageSquare, ChefHat, ArrowLeft
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -141,8 +141,13 @@ export default function OrdersScreen() {
     <View style={styles.container}>
       {/* Header */}
       <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
-        <Text style={styles.headerTitle}>My Orders</Text>
-        <Text style={styles.headerSub}>{orders.length} orders placed</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+          <ArrowLeft size={22} color={TEXT_COLOR} />
+        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>My Orders</Text>
+          <Text style={styles.headerSub}>{orders.length} orders placed</Text>
+        </View>
       </Animated.View>
 
       {loading ? (
@@ -186,14 +191,19 @@ const styles = StyleSheet.create({
   centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   
   header: {
+    flexDirection: 'row', alignItems: 'center', gap: 16,
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 60 : 48,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1, borderBottomColor: BORDER,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+  },
+  backBtn: {
+    padding: 8, marginLeft: -4, borderRadius: 12, backgroundColor: BG
   },
   headerTitle: { fontFamily: 'Inter-Black', fontSize: 22, color: TEXT_COLOR },
-  headerSub: { fontFamily: 'Inter-Medium', fontSize: 13, color: MUTED, marginTop: 4 },
+  headerSub: { fontFamily: 'Inter-Medium', fontSize: 13, color: MUTED, marginTop: 2 },
   
   listContent: { padding: 16, paddingBottom: 40 },
   

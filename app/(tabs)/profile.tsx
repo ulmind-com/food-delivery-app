@@ -1,17 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, Alert, Pressable,
+  Platform, Alert, Pressable, StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   User, Package, MapPin, HelpCircle, Info, LogOut,
-  ChevronRight, Settings, Heart, Star, Shield, Bell,
+  ChevronRight, Heart, Star, Shield, Bell, ArrowLeft,
+  Pencil, Phone, Mail, CreditCard, FileText,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import { Image } from 'expo-image';
+import { resolveImageURL } from '../../lib/image-utils';
 import { useAuthStore } from '../../store/useAuthStore';
+import { userApi } from '../../services/api';
 
 const PRIMARY = '#FC8019';
+const PRIMARY_LIGHT = '#FFF7ED';
+const BG = '#F8F9FB';
+const CARD = '#FFFFFF';
+const TEXT_DARK = '#1A1A2E';
+const TEXT_MUTED = '#6B7280';
+const BORDER = '#F3F4F6';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -20,6 +30,23 @@ export default function ProfileScreen() {
   const logout = useAuthStore((s) => s.logout);
 
   const isLoggedIn = !!token && !!user;
+
+  const [freshImage, setFreshImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      userApi.getProfile()
+        .then(res => {
+           const profile = res.data?.user || res.data;
+           if (profile?.profileImage) {
+             setFreshImage(profile.profileImage);
+           }
+        })
+        .catch(err => console.log('Error fetching fresh profile:', err));
+    }
+  }, [isLoggedIn]);
+
+  const displayImage = freshImage || user?.profileImage;
 
   const handleLogout = () => {
     Alert.alert(
@@ -35,12 +62,22 @@ export default function ProfileScreen() {
   if (!isLoggedIn) {
     return (
       <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ArrowLeft size={24} color={TEXT_DARK} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profile</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
         <View style={styles.guestContainer}>
-          <Animated.View entering={FadeIn.duration(500)} style={styles.guestAvatar}>
-            <User size={48} color="#C0C0C0" />
+          <Animated.View entering={FadeIn.duration(500)} style={styles.guestIconWrap}>
+            <User size={48} color={PRIMARY} />
           </Animated.View>
-          <Text style={styles.guestTitle}>Your Profile</Text>
-          <Text style={styles.guestSub}>Login to view your orders, manage addresses, and more</Text>
+          <Text style={styles.guestTitle}>Welcome!</Text>
+          <Text style={styles.guestSub}>Login to view your profile, orders, and manage addresses</Text>
           <TouchableOpacity
             style={styles.loginBtn}
             activeOpacity={0.85}
@@ -53,167 +90,203 @@ export default function ProfileScreen() {
     );
   }
 
-  // ─── Quick Action ───────────────────────────────
-  const QuickAction = ({ icon, label, sub, onPress, idx }: any) => (
-    <Animated.View entering={FadeInDown.delay(100 + idx * 60).duration(400)}>
-      <Pressable style={styles.quickAction} onPress={onPress}>
-        <View style={styles.quickIconWrap}>{icon}</View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.quickLabel}>{label}</Text>
-          {sub && <Text style={styles.quickSub}>{sub}</Text>}
+  // ─── Menu Item ──────────────────────────────────
+  const MenuItem = ({ icon, label, sub, onPress, idx }: any) => (
+    <Animated.View entering={FadeInDown.delay(80 + idx * 50).springify()}>
+      <TouchableOpacity
+        style={styles.menuItem}
+        activeOpacity={0.7}
+        onPress={onPress}
+      >
+        <View style={styles.menuIconWrap}>
+          {icon}
         </View>
-        <ChevronRight size={18} color="#C0C0C0" />
-      </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.menuLabel}>{label}</Text>
+          {sub && <Text style={styles.menuSub}>{sub}</Text>}
+        </View>
+        <ChevronRight size={18} color="#D1D5DB" />
+      </TouchableOpacity>
     </Animated.View>
   );
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <ArrowLeft size={24} color={TEXT_DARK} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Profile</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* ─── Profile Header ─── */}
-        <Animated.View entering={FadeIn.duration(500)} style={styles.profileHeader}>
-          <View style={styles.profileAvatarRing}>
-            <View style={styles.profileAvatar}>
-              <Text style={{ fontSize: 32 }}>
-                {user?.name ? user.name.charAt(0).toUpperCase() : '?'}
-              </Text>
+
+        {/* ─── Profile Card ─── */}
+        <Animated.View entering={FadeInDown.delay(50).springify()} style={styles.profileCard}>
+          <View style={styles.profileTop}>
+            <View style={styles.avatarRing}>
+              {displayImage ? (
+                <Image source={{ uri: resolveImageURL(displayImage) }} style={styles.avatarImg} contentFit="cover" />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarInitial}>
+                    {user?.name ? user.name.charAt(0).toUpperCase() : '?'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{user?.name || 'User'}</Text>
+              <View style={styles.profileDetailRow}>
+                <Mail size={13} color={TEXT_MUTED} />
+                <Text style={styles.profileDetailText}>{user?.email}</Text>
+              </View>
+              {user?.mobile && (
+                <View style={styles.profileDetailRow}>
+                  <Phone size={13} color={TEXT_MUTED} />
+                  <Text style={styles.profileDetailText}>{user.mobile}</Text>
+                </View>
+              )}
             </View>
           </View>
-          <Text style={styles.profileName}>{user?.name || 'User'}</Text>
-          <Text style={styles.profileEmail}>{user?.email}</Text>
-          {user?.mobile && <Text style={styles.profilePhone}>📱 {user.mobile}</Text>}
-
-          <TouchableOpacity 
-            style={styles.editProfileBtn} 
-            activeOpacity={0.8}
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            activeOpacity={0.85}
             onPress={() => router.push('/edit-profile')}
           >
+            <Pencil size={16} color="#FFF" />
             <Text style={styles.editProfileText}>Edit Profile</Text>
           </TouchableOpacity>
         </Animated.View>
 
-        {/* ─── Stats Row ─── */}
-        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Orders</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Favourites</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>₹0</Text>
-            <Text style={styles.statLabel}>Saved</Text>
-          </View>
-        </Animated.View>
-
-        {/* ─── Quick Actions ─── */}
-        <View style={styles.sectionBox}>
-          <Text style={styles.sectionLabel}>MY ACCOUNT</Text>
-          <QuickAction idx={0} icon={<Package size={20} color={PRIMARY} />} label="My Orders" sub="View order history" onPress={() => router.push('/(tabs)/orders')} />
-          <QuickAction idx={1} icon={<MapPin size={20} color="#3B82F6" />} label="Saved Addresses" sub="Manage delivery addresses" onPress={() => router.push('/addresses')} />
-          <QuickAction idx={2} icon={<Heart size={20} color="#EF4444" />} label="Favourites" sub="Your favourite items" onPress={() => {}} />
-          <QuickAction idx={3} icon={<Star size={20} color="#F59E0B" />} label="Reviews & Ratings" sub="Rate your orders" onPress={() => {}} />
+        {/* ─── My Account ─── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>MY ACCOUNT</Text>
+          <MenuItem idx={0} icon={<Package size={20} color={PRIMARY} />} label="My Orders" sub="Track & reorder" onPress={() => router.push('/(tabs)/orders')} />
+          <MenuItem idx={1} icon={<MapPin size={20} color="#3B82F6" />} label="Saved Addresses" sub="Manage delivery locations" onPress={() => router.push('/addresses')} />
+          <MenuItem idx={2} icon={<Heart size={20} color="#EF4444" />} label="Favourites" sub="Your saved items" onPress={() => {}} />
+          <MenuItem idx={3} icon={<CreditCard size={20} color="#8B5CF6" />} label="Payments" sub="Saved cards & UPI" onPress={() => {}} />
         </View>
 
-        <View style={styles.sectionBox}>
-          <Text style={styles.sectionLabel}>MORE</Text>
-          <QuickAction idx={4} icon={<Bell size={20} color="#8B5CF6" />} label="Notifications" sub="Manage alerts" onPress={() => {}} />
-          <QuickAction idx={5} icon={<Shield size={20} color="#16a34a" />} label="Privacy & Security" sub="Account security" onPress={() => {}} />
-          <QuickAction idx={6} icon={<HelpCircle size={20} color="#6B7280" />} label="Help & Support" sub="Get help with orders" onPress={() => {}} />
-          <QuickAction idx={7} icon={<Info size={20} color="#6B7280" />} label="About" sub="App version 1.0.0" onPress={() => {}} />
+        {/* ─── Settings ─── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>SETTINGS</Text>
+          <MenuItem idx={4} icon={<Bell size={20} color="#F59E0B" />} label="Notifications" sub="Manage alerts & offers" onPress={() => {}} />
+          <MenuItem idx={5} icon={<Shield size={20} color="#16a34a" />} label="Privacy & Security" sub="Password & permissions" onPress={() => {}} />
+        </View>
+
+        {/* ─── Support ─── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>SUPPORT</Text>
+          <MenuItem idx={6} icon={<HelpCircle size={20} color="#6366F1" />} label="Help & Support" sub="FAQs & contact us" onPress={() => {}} />
+          <MenuItem idx={7} icon={<FileText size={20} color="#6B7280" />} label="Terms & Policies" sub="Legal information" onPress={() => {}} />
+          <MenuItem idx={8} icon={<Info size={20} color="#6B7280" />} label="About" sub="App version 1.0.0" onPress={() => {}} />
         </View>
 
         {/* ─── Logout ─── */}
-        <Animated.View entering={FadeInDown.delay(500).duration(400)} style={{ paddingHorizontal: 16, marginBottom: 40 }}>
-          <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleLogout}>
-            <LogOut size={18} color="#DC2626" />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        <View style={styles.section}>
+          <MenuItem idx={9} icon={<LogOut size={20} color="#EF4444" />} label="Logout" sub="Sign out of your account" onPress={handleLogout} />
+        </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFCF7' },
+  container: { flex: 1, backgroundColor: BG },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 44, paddingBottom: 18,
+    backgroundColor: CARD,
+    borderBottomWidth: 1, borderBottomColor: BORDER,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+  },
+  backBtn: { padding: 8, marginLeft: -8, borderRadius: 12, backgroundColor: BG },
+  headerTitle: { fontFamily: 'Inter-Black', fontSize: 20, color: TEXT_DARK },
+
   scrollContent: { paddingBottom: 40 },
-  // Guest
+
+  // ── Guest ──
   guestContainer: {
     flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32,
   },
-  guestAvatar: {
+  guestIconWrap: {
     width: 100, height: 100, borderRadius: 50,
-    backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20,
+    backgroundColor: PRIMARY_LIGHT,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 24, borderWidth: 2, borderColor: '#FDDCB5',
   },
-  guestTitle: { fontFamily: 'Inter-Bold', fontSize: 22, color: '#3D4152', marginBottom: 8 },
-  guestSub: { fontFamily: 'Inter-Medium', fontSize: 14, color: '#93959F', textAlign: 'center', maxWidth: '80%', lineHeight: 20, marginBottom: 28 },
+  guestTitle: { fontFamily: 'Inter-Black', fontSize: 24, color: TEXT_DARK, marginBottom: 8 },
+  guestSub: {
+    fontFamily: 'Inter-Medium', fontSize: 15, color: TEXT_MUTED,
+    textAlign: 'center', lineHeight: 22, maxWidth: '85%', marginBottom: 32,
+  },
   loginBtn: {
-    backgroundColor: PRIMARY, borderRadius: 14, paddingHorizontal: 40, paddingVertical: 16,
+    backgroundColor: PRIMARY, borderRadius: 16, paddingHorizontal: 44, paddingVertical: 16,
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
   },
-  loginBtnText: { fontFamily: 'Inter-Bold', fontSize: 16, color: '#FFF' },
-  // Profile Header
-  profileHeader: {
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 70 : 56,
-    paddingBottom: 24,
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
+  loginBtnText: { fontFamily: 'Inter-Black', fontSize: 16, color: '#FFF' },
+
+  // ── Profile Card ──
+  profileCard: {
+    margin: 16, marginBottom: 8,
+    backgroundColor: CARD, borderRadius: 20, padding: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3,
   },
-  profileAvatarRing: {
-    width: 88, height: 88, borderRadius: 44,
-    borderWidth: 3, borderColor: PRIMARY,
-    padding: 3, marginBottom: 14,
+  profileTop: {
+    flexDirection: 'row', alignItems: 'center', gap: 16,
   },
-  profileAvatar: {
-    width: '100%', height: '100%', borderRadius: 40,
-    backgroundColor: '#FFF3E0', alignItems: 'center', justifyContent: 'center',
+  avatarRing: {
+    width: 72, height: 72, borderRadius: 36,
+    borderWidth: 2.5, borderColor: PRIMARY,
+    padding: 2,
   },
-  profileName: { fontFamily: 'Inter-Bold', fontSize: 22, color: '#3D4152' },
-  profileEmail: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#93959F', marginTop: 2 },
-  profilePhone: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#93959F', marginTop: 4 },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 34 },
+  avatarFallback: {
+    width: '100%', height: '100%', borderRadius: 34,
+    backgroundColor: PRIMARY_LIGHT, alignItems: 'center', justifyContent: 'center',
+  },
+  avatarInitial: { fontFamily: 'Inter-Black', fontSize: 28, color: PRIMARY },
+  profileInfo: { flex: 1 },
+  profileName: { fontFamily: 'Inter-Black', fontSize: 20, color: TEXT_DARK, marginBottom: 6 },
+  profileDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  profileDetailText: { fontFamily: 'Inter-Medium', fontSize: 13, color: TEXT_MUTED },
+
   editProfileBtn: {
-    marginTop: 14, borderWidth: 1.5, borderColor: PRIMARY,
-    borderRadius: 10, paddingHorizontal: 20, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    marginTop: 20, paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6,
   },
-  editProfileText: { fontFamily: 'Inter-Bold', fontSize: 13, color: PRIMARY },
-  // Stats
-  statsRow: {
-    flexDirection: 'row', marginHorizontal: 16, marginTop: 16,
-    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
+  editProfileText: { fontFamily: 'Inter-Black', fontSize: 15, color: '#FFFFFF' },
+
+  // ── Sections ──
+  section: { paddingHorizontal: 16, marginTop: 16 },
+  sectionTitle: {
+    fontFamily: 'Inter-Black', fontSize: 11, color: TEXT_MUTED,
+    letterSpacing: 1.2, marginBottom: 10, paddingLeft: 4,
   },
-  statItem: { flex: 1, alignItems: 'center' },
-  statNumber: { fontFamily: 'Inter-Black', fontSize: 20, color: '#3D4152' },
-  statLabel: { fontFamily: 'Inter-Medium', fontSize: 11, color: '#93959F', marginTop: 2 },
-  statDivider: { width: 1, backgroundColor: '#F0F0F5', marginVertical: 4 },
-  // Sections
-  sectionBox: { paddingHorizontal: 16, marginTop: 20 },
-  sectionLabel: { fontFamily: 'Inter-ExtraBold', fontSize: 11, color: '#93959F', letterSpacing: 1, marginBottom: 10 },
-  quickAction: {
+
+  // ── Menu Items ──
+  menuItem: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16,
+    backgroundColor: CARD, borderRadius: 16, padding: 16,
     marginBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
-  quickIconWrap: {
-    width: 42, height: 42, borderRadius: 12,
-    backgroundColor: '#F7F7F7', alignItems: 'center', justifyContent: 'center',
+  menuIconWrap: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: BG, alignItems: 'center', justifyContent: 'center',
   },
-  quickLabel: { fontFamily: 'Inter-SemiBold', fontSize: 15, color: '#3D4152' },
-  quickSub: { fontFamily: 'Inter', fontSize: 12, color: '#93959F', marginTop: 1 },
-  // Logout
-  logoutBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#FEF2F2', borderRadius: 14, paddingVertical: 16,
-    borderWidth: 1.5, borderColor: '#FECACA',
-  },
-  logoutText: { fontFamily: 'Inter-Bold', fontSize: 15, color: '#DC2626' },
+  menuLabel: { fontFamily: 'Inter-SemiBold', fontSize: 15, color: TEXT_DARK },
+  menuSub: { fontFamily: 'Inter-Medium', fontSize: 12, color: TEXT_MUTED, marginTop: 2 },
 });

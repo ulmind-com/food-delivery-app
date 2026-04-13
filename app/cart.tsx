@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, Platform, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Info, Clock, ChevronRight } from 'lucide-react-native';
@@ -59,7 +59,7 @@ export default function CartScreen() {
       </Text>
       <Button
         title="Browse Restaurant"
-        onPress={() => router.back()}
+        onPress={() => router.push('/(tabs)')}
         style={{ marginTop: 24, width: 'auto', paddingHorizontal: 32 }}
       />
     </View>
@@ -71,14 +71,30 @@ export default function CartScreen() {
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.push('/(tabs)')} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>My Order</Text>
         {items.length > 0 ? (
-          <TouchableOpacity onPress={clearCart} style={styles.clearBtn}>
+          <Pressable 
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                if (window.confirm('Remove all items from your cart?')) clearCart();
+              } else {
+                Alert.alert('Clear Cart', 'Remove all items from your cart?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Clear', style: 'destructive', onPress: clearCart },
+                ]);
+              }
+            }} 
+            style={({ pressed }) => [
+              styles.clearBtn, 
+              pressed && { opacity: 0.6 },
+            ]}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Trash2 size={20} color={colors.destructive} />
-          </TouchableOpacity>
+          </Pressable>
         ) : (
           <View style={{ width: 40 }} />
         )}
@@ -112,11 +128,6 @@ export default function CartScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Delivery Estimate Banner */}
-            <Animated.View entering={FadeInDown.delay(50).springify()} style={[styles.deliveryBanner, { backgroundColor: `${PRIMARY}10`, borderColor: `${PRIMARY}25` }]}>
-              <Clock size={16} color={PRIMARY} strokeWidth={2.5} />
-              <Text style={styles.deliveryBannerText}>Estimated delivery in <Text style={styles.deliveryBannerBold}>30-40 min</Text></Text>
-            </Animated.View>
 
             {/* Items List */}
             <View style={styles.itemsList}>
@@ -279,6 +290,18 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: -8,
   },
+  clearBtnConfirm: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: -4,
+  },
+  clearBtnText: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 12,
+    color: '#EF4444',
+  },
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -310,6 +333,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 150,
   },
   itemsList: {
     paddingTop: 16,

@@ -160,7 +160,7 @@ function OrderTrackingScreen() {
   const userLng: number | undefined = deliveryCoords?.lng ?? deliveryCoords?.longitude;
   const restaurantLat: number | undefined = restaurant?.location?.lat;
   const restaurantLng: number | undefined = restaurant?.location?.lng;
-  const showMap = isActive && (!!(restaurantLat && restaurantLng) || !!(userLat && userLng));
+  const showMap = (!!restaurantLat && !!restaurantLng) && (!!userLat && !!userLng);
 
   useEffect(() => {
     if (!showMap || !restaurantLat || !userLat || !restaurantLng || !userLng) return;
@@ -241,7 +241,8 @@ function OrderTrackingScreen() {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.PLACED;
   const currentStepIdx = STATUS_STEPS.indexOf(status);
   const isCancelled = status === "CANCELLED";
-  const currentPrepTime = livePrepTime !== null ? livePrepTime : order?.preparationTime;
+  const rawPrepTime = livePrepTime !== null ? livePrepTime : order?.preparationTime;
+  const currentPrepTime = Number(rawPrepTime) || 0;
 
   const date = new Date(order.createdAt).toLocaleDateString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',

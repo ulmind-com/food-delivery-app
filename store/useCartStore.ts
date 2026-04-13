@@ -70,11 +70,22 @@ const parseCartResponse = (data: any) => {
 
   const localItemsTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
+  // Fallback cleanup: If cart is empty, it shouldn't have any attached costs or coupons
+  if (localItemsTotal === 0 || items.length === 0) {
+    return {
+      items: [], totalPrice: 0, tax: 0, taxBreakdown: { cgstTotal: 0, sgstTotal: 0, igstTotal: 0 },
+      deliveryFee: 0, finalPrice: 0, discountAmount: 0, appliedCoupon: null
+    };
+  }
+
   // Parse coupon if applied
   let appliedCoupon: AppliedCoupon | null = null;
   let discountAmount = 0;
-  if (data.appliedCoupon || data.coupon) {
-    const c = data.appliedCoupon || data.coupon;
+  
+  // Safely grab the coupon object (ignoring stray Unpopulated String IDs from the backend)
+  const rawCouponObj = data.appliedCoupon || data.coupon;
+  if (rawCouponObj && typeof rawCouponObj === 'object' && Object.keys(rawCouponObj).length > 0) {
+    const c = rawCouponObj;
     appliedCoupon = {
       code: c.code || c.couponCode || '',
       name: c.name || c.title || '',
@@ -167,8 +178,20 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
       const parsed = parseCartResponse(mergedData);
       
       // If a mutation is actively in flight, discard this fetch to prevent flashing stale data
+      // BUT we absolutely must recover the real database item IDs for any optimistic items!
       if (get().syncCount > 0) {
-        set({ isLoading: false });
+        set((s) => ({
+          isLoading: false,
+          items: s.items.map(oldItem => {
+             if (oldItem.itemId && oldItem.itemId.startsWith('temp_')) {
+                const realItem = parsed.items.find(pi => pi._id === oldItem._id);
+                if (realItem && realItem.itemId) {
+                   return { ...oldItem, itemId: realItem.itemId };
+                }
+             }
+             return oldItem;
+          })
+        }));
         return;
       }
 
@@ -216,22 +239,45 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
   },
 
   incrementItem: async (itemId) => {
-    // Optimistic
-    const item = get().items.find((i) => i.itemId === itemId);
+    let item = get().items.find((i) => i.itemId === itemId);
     if (!item) return;
 
+    const targetQuantity = item.quantity + 1;
+    const priceDelta = item.price;
+
+    // 1. Optimistic Instant Update
     set((s) => ({
       syncCount: s.syncCount + 1,
       items: s.items.map((i) =>
-        i.itemId === itemId ? { ...i, quantity: i.quantity + 1 } : i
+        i.itemId === itemId ? { ...i, quantity: targetQuantity } : i
       ),
-      totalPrice: s.totalPrice + item.price,
-      finalPrice: s.finalPrice + item.price,
+      totalPrice: s.totalPrice + priceDelta,
+      finalPrice: s.finalPrice + priceDelta,
     }));
 
+    // 2. Race-condition prevention: wait for real ID if necessary BEFORE API call
+    let apiItemId = itemId;
+    if (apiItemId.startsWith('temp_')) {
+      await new Promise(res => setTimeout(res, 600));
+      const realItem = get().items.find((i) => i._id === item._id);
+      if (!realItem || realItem.itemId.startsWith('temp_')) {
+         // Fail safely
+         set((s) => ({
+           syncCount: s.syncCount - 1,
+           items: s.items.map((i) =>
+             i.itemId === itemId ? { ...i, quantity: item.quantity } : i
+           ),
+           totalPrice: s.totalPrice - priceDelta,
+           finalPrice: s.finalPrice - priceDelta,
+         }));
+         return; 
+      }
+      apiItemId = realItem.itemId;
+    }
+
     try {
-      await cartApi.updateCartItem(itemId, {
-        quantity: item.quantity + 1,
+      await cartApi.updateCartItem(apiItemId, {
+        quantity: targetQuantity,
       });
       set((s) => ({ syncCount: s.syncCount - 1 }));
       await get().fetchCart();
@@ -240,16 +286,16 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
       set((s) => ({
         syncCount: s.syncCount - 1,
         items: s.items.map((i) =>
-          i.itemId === itemId ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i
+          i.itemId === itemId ? { ...i, quantity: item.quantity } : i
         ),
-        totalPrice: s.totalPrice - item.price,
-        finalPrice: s.finalPrice - item.price,
+        totalPrice: s.totalPrice - priceDelta,
+        finalPrice: s.finalPrice - priceDelta,
       }));
     }
   },
 
   decrementItem: async (itemId) => {
-    const item = get().items.find((i) => i.itemId === itemId);
+    let item = get().items.find((i) => i.itemId === itemId);
     if (!item) return;
 
     if (item.quantity <= 1) {
@@ -257,18 +303,39 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
       return get().removeItem(itemId);
     }
 
-    // Optimistic
+    const targetQuantity = item.quantity - 1;
+    const priceDelta = item.price;
+
+    // 1. Optimistic Instant Update
     set((s) => ({
       items: s.items.map((i) =>
-        i.itemId === itemId ? { ...i, quantity: i.quantity - 1 } : i
+        i.itemId === itemId ? { ...i, quantity: targetQuantity } : i
       ),
-      totalPrice: s.totalPrice - item.price,
-      finalPrice: s.finalPrice - item.price,
+      totalPrice: s.totalPrice - priceDelta,
+      finalPrice: s.finalPrice - priceDelta,
     }));
 
+    // 2. Race condition handler
+    let apiItemId = itemId;
+    if (apiItemId.startsWith('temp_')) {
+      await new Promise(res => setTimeout(res, 600));
+      const realItem = get().items.find((i) => i._id === item._id);
+      if (!realItem || realItem.itemId.startsWith('temp_')) {
+         set((s) => ({
+           items: s.items.map((i) =>
+             i.itemId === itemId ? { ...i, quantity: item.quantity } : i
+           ),
+           totalPrice: s.totalPrice + priceDelta,
+           finalPrice: s.finalPrice + priceDelta,
+         }));
+         return; 
+      }
+      apiItemId = realItem.itemId;
+    }
+
     try {
-      const { data } = await cartApi.updateCartItem(itemId, {
-        quantity: item.quantity - 1,
+      const { data } = await cartApi.updateCartItem(apiItemId, {
+        quantity: targetQuantity,
       });
       const parsed = parseCartResponse(data);
       set({ ...parsed });
@@ -276,27 +343,46 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
       // Rollback
       set((s) => ({
         items: s.items.map((i) =>
-          i.itemId === itemId ? { ...i, quantity: i.quantity + 1 } : i
+          i.itemId === itemId ? { ...i, quantity: item.quantity } : i
         ),
-        totalPrice: s.totalPrice + item.price,
-        finalPrice: s.finalPrice + item.price,
+        totalPrice: s.totalPrice + priceDelta,
+        finalPrice: s.finalPrice + priceDelta,
       }));
     }
   },
 
   removeItem: async (itemId) => {
     const prev = get().items;
-    const itemToRemove = prev.find((i) => i.itemId === itemId);
-    const deduction = itemToRemove ? itemToRemove.price * itemToRemove.quantity : 0;
+    let itemToRemove = prev.find((i) => i.itemId === itemId);
+    if (!itemToRemove) return;
     
+    const deduction = itemToRemove.price * itemToRemove.quantity;
+    
+    // 1. Optimistic Fast Clear
     set((s) => ({
       items: s.items.filter((i) => i.itemId !== itemId),
       totalPrice: s.totalPrice - deduction,
       finalPrice: s.finalPrice - deduction,
     }));
 
+    // 2. Race condition handler
+    let apiItemId = itemId;
+    if (apiItemId.startsWith('temp_')) {
+      await new Promise(res => setTimeout(res, 600));
+      itemToRemove = get().items.find((i) => i._id === itemToRemove?._id);
+      if (!itemToRemove || itemToRemove.itemId.startsWith('temp_')) {
+        set((s) => ({
+          items: prev,
+          totalPrice: s.totalPrice + deduction,
+          finalPrice: s.finalPrice + deduction,
+        }));
+        return;
+      }
+      apiItemId = itemToRemove.itemId;
+    }
+
     try {
-      const { data } = await cartApi.removeFromCart(itemId);
+      const { data } = await cartApi.removeFromCart(apiItemId);
       const parsed = parseCartResponse(data);
       set({ ...parsed });
     } catch {

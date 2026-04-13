@@ -188,7 +188,7 @@ export default function CheckoutScreen() {
       <View style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.push('/cart')} style={styles.backButton}>
             <ArrowLeft size={24} color={TEXT_COLOR} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Checkout</Text>
@@ -218,7 +218,7 @@ export default function CheckoutScreen() {
 
       {/* ─── Header ─── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.push('/cart')} style={styles.backButton}>
           <ArrowLeft size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Checkout</Text>
@@ -233,7 +233,7 @@ export default function CheckoutScreen() {
       >
         
         {/* ─── 1. Delivery Address Card ─── */}
-        <Animated.View entering={FadeInDown.delay(50).springify()} style={styles.section}>
+        <Animated.View entering={FadeIn.duration(400)} style={styles.section}>
           <Text style={styles.sectionLabel}>DELIVER TO</Text>
           {selectedAddress ? (
             <View style={styles.card}>
@@ -267,7 +267,7 @@ export default function CheckoutScreen() {
         </Animated.View>
 
         {/* ─── 2. Items Summary Card ─── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.section}>
+        <Animated.View entering={FadeIn.duration(400).delay(50)} style={styles.section}>
           <Text style={styles.sectionLabel}>YOUR ORDER</Text>
           <View style={styles.card}>
             {items.map((item, idx) => (
@@ -358,7 +358,7 @@ export default function CheckoutScreen() {
 
         {/* ─── 3. Recommended Products ─── */}
         {filteredRecommendations.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.section}>
+          <Animated.View entering={FadeIn.duration(400).delay(100)} style={styles.section}>
             <View style={styles.recHeaderRow}>
               <Sparkles size={14} color={PRIMARY} />
               <Text style={styles.sectionLabel}>YOU MAY ALSO LIKE</Text>
@@ -404,12 +404,12 @@ export default function CheckoutScreen() {
         )}
 
         {/* ─── 4. Apply Coupon ─── */}
-        <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.section}>
+        <Animated.View entering={FadeIn.duration(400).delay(150)} style={styles.section}>
           <TicketCoupon />
         </Animated.View>
 
         {/* ─── 5. Bill Summary ─── */}
-        <Animated.View entering={FadeInDown.delay(250).springify()} style={styles.section}>
+        <Animated.View entering={FadeIn.duration(400).delay(200)} style={styles.section}>
           <Text style={styles.sectionLabel}>BILL SUMMARY</Text>
           <View style={styles.card}>
             <View style={styles.billRow}>
@@ -462,7 +462,7 @@ export default function CheckoutScreen() {
 
         {/* ─── 6. Savings Banner ─── */}
         {discountAmount > 0 && (
-          <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.section}>
+          <Animated.View entering={FadeIn.duration(400).delay(250)} style={styles.section}>
             <View style={styles.savingsBanner}>
               <Text style={styles.savingsText}>
                 🎉 You saved ₹{discountAmount.toFixed(0)} on this order!
@@ -476,7 +476,7 @@ export default function CheckoutScreen() {
       </ScrollView>
 
       {/* ─── Fixed Bottom: Payment + Place Order ─── */}
-      <Animated.View entering={SlideInUp.delay(200).springify()} style={styles.fixedBottom}>
+      <Animated.View entering={FadeInUp.delay(200)} style={styles.fixedBottom}>
         {/* Payment method toggle */}
         <View style={styles.paymentToggleRow}>
           <TouchableOpacity 
@@ -535,8 +535,8 @@ export default function CheckoutScreen() {
               </View>
             ) : (
               <>
-                <View>
-                  <Text style={styles.placeOrderLabel}>TOTAL TO PAY</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                  <Text style={styles.placeOrderLabel}>TOTAL</Text>
                   <Text style={styles.placeOrderAmount}>₹{finalPrice.toFixed(0)}</Text>
                 </View>
                 <View style={styles.placeOrderRight}>
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: 'Inter-Black', fontSize: 18, color: TEXT_COLOR },
   backButton: { padding: 8, marginLeft: -8 },
 
-  scrollContent: { paddingTop: 16 },
+  scrollContent: { paddingTop: 16, paddingBottom: 150 },
 
   section: { paddingHorizontal: 16, marginBottom: 16 },
   sectionLabel: { fontFamily: 'Inter-Black', fontSize: 11, color: MUTED, letterSpacing: 1.2, marginBottom: 10 },
@@ -693,8 +693,8 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY,
     shadowColor: PRIMARY, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8,
   },
-  placeOrderLabel: { fontFamily: 'Inter-Bold', fontSize: 9, color: 'rgba(255,255,255,0.85)', letterSpacing: 1 },
-  placeOrderAmount: { fontFamily: 'Inter-Black', fontSize: 22, color: '#FFFFFF', lineHeight: 26 },
+  placeOrderLabel: { fontFamily: 'Inter-Black', fontSize: 12, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase' },
+  placeOrderAmount: { fontFamily: 'Inter-Black', fontSize: 20, color: '#FFFFFF' },
   placeOrderRight: { 
     flexDirection: 'row', alignItems: 'center', gap: 6, 
     backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10,
