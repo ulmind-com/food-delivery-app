@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Platform, ScrollView, TextInput, KeyboardAvoidingView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import type { Region } from 'react-native-maps';
@@ -8,6 +8,8 @@ import { MapPin, X, CheckCircle, Navigation, Home, Briefcase } from 'lucide-reac
 import { userApi } from '../services/api';
 import { useLocationStore, SavedAddress } from '../store/useLocationStore';
 import { useAuthStore } from '../store/useAuthStore';
+import LottieView from 'lottie-react-native';
+import Animated, { FadeIn, FadeOut, ZoomIn, SlideInUp } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 const PRIMARY = '#FC8019';
@@ -31,6 +33,12 @@ export default function LocationPickerScreen() {
   const [geocoding, setGeocoding] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  
+  // ─── NEW: Initial loading state for Lottie animation ───
+  const [initializing, setInitializing] = useState(true);
+
+  // ─── NEW: Debounce ref to prevent infinite geocode calls ───
+  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Form State
   const [addressType, setAddressType] = useState<'HOME' | 'WORK' | 'OTHER'>('HOME');
@@ -58,14 +66,16 @@ export default function LocationPickerScreen() {
           };
           setRegion(initialRegion);
           mapRef.current?.animateToRegion(initialRegion, 500);
-          doReverseGeocode(initialRegion.latitude, initialRegion.longitude);
+          await doReverseGeocode(initialRegion.latitude, initialRegion.longitude);
         } catch (err) {
           console.log('Error getting initial location', err);
-          doReverseGeocode(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+          await doReverseGeocode(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
         }
       } else {
-        doReverseGeocode(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+        await doReverseGeocode(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
       }
+      // ─── Hide Lottie animation once initial location is done ───
+      setInitializing(false);
     })();
   }, []);
 
@@ -103,10 +113,27 @@ export default function LocationPickerScreen() {
     }
   };
 
-  const handleRegionChangeComplete = (newRegion: Region) => {
+  // ─── FIX: Debounced region change handler — waits 800ms after user stops dragging ───
+  const handleRegionChangeComplete = useCallback((newRegion: Region) => {
     setRegion(newRegion);
-    doReverseGeocode(newRegion.latitude, newRegion.longitude);
-  };
+    
+    // Clear any pending geocode call
+    if (geocodeTimer.current) {
+      clearTimeout(geocodeTimer.current);
+    }
+    
+    // Wait 800ms after map stops moving before geocoding
+    geocodeTimer.current = setTimeout(() => {
+      doReverseGeocode(newRegion.latitude, newRegion.longitude);
+    }, 800);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    };
+  }, []);
 
   const locateMe = async () => {
     if (!hasPermission) {
@@ -197,6 +224,34 @@ export default function LocationPickerScreen() {
     }
   };
 
+  // ─── PREMIUM: Full-screen Lottie overlay while fetching initial location ───
+  if (initializing) {
+    return (
+      <View style={styles.initContainer}>
+        <Stack.Screen options={{ presentation: 'modal', headerShown: false }} />
+        <Animated.View entering={ZoomIn.springify().damping(18)} style={styles.initContent}>
+          <LottieView
+            source={require('../assets/lottie/Location.json')}
+            autoPlay
+            loop
+            style={styles.initLottie}
+          />
+          <Animated.Text entering={FadeIn.delay(300).duration(600)} style={styles.initTitle}>
+            Finding your location
+          </Animated.Text>
+          <Animated.Text entering={FadeIn.delay(500).duration(600)} style={styles.initSub}>
+            Hang tight, we're pinpointing your delivery spot...
+          </Animated.Text>
+          <Animated.View entering={FadeIn.delay(700).duration(400)} style={styles.initDotsRow}>
+            <View style={[styles.initDot, { backgroundColor: PRIMARY }]} />
+            <View style={[styles.initDot, { backgroundColor: '#FFA64D', width: 8, height: 8 }]} />
+            <View style={[styles.initDot, { backgroundColor: '#FFD699', width: 6, height: 6 }]} />
+          </Animated.View>
+        </Animated.View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
       <Stack.Screen options={{ presentation: 'modal', headerShown: false }} />
@@ -243,7 +298,7 @@ export default function LocationPickerScreen() {
           </View>
 
           {/* Bottom Display Card */}
-          <View style={styles.bottomCard}>
+          <Animated.View entering={SlideInUp.springify().damping(20)} style={styles.bottomCard}>
             <View style={styles.addressRow}>
               <View style={styles.pinIconWrap}>
                 <MapPin size={22} color={PRIMARY} fill="#FFF3E0" />
@@ -255,14 +310,14 @@ export default function LocationPickerScreen() {
                     <Text style={styles.loadingText}>Fetching location details...</Text>
                   </View>
                 ) : resolvedAddress ? (
-                  <>
+                  <Animated.View entering={FadeIn.duration(400)}>
                     <Text style={styles.addressLine1} numberOfLines={1}>
                       {resolvedAddress.displayName || [resolvedAddress.addressLine1, resolvedAddress.addressLine2].filter(Boolean).join(", ")}
                     </Text>
                     <Text style={styles.addressLine2} numberOfLines={2}>
                       {[resolvedAddress.city, resolvedAddress.state, resolvedAddress.postalCode].filter(Boolean).join(", ")}
                     </Text>
-                  </>
+                  </Animated.View>
                 ) : (
                   <Text style={styles.loadingText}>Move map to find location</Text>
                 )}
@@ -277,7 +332,7 @@ export default function LocationPickerScreen() {
               <Text style={styles.confirmBtnText}>Confirm Location</Text>
               <CheckCircle size={18} color="#FFF" />
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </>
       ) : (
         /* Form Area */
@@ -373,6 +428,30 @@ export default function LocationPickerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
+  
+  // ─── Premium Lottie Init Screen ───
+  initContainer: { 
+    flex: 1, backgroundColor: '#FFFFFF', 
+    alignItems: 'center', justifyContent: 'center',
+  },
+  initContent: { alignItems: 'center', paddingHorizontal: 40 },
+  initLottie: { width: 220, height: 220, marginBottom: 8 },
+  initTitle: { 
+    fontFamily: 'Inter-Bold', fontSize: 22, color: '#1A1A1A', 
+    textAlign: 'center', marginBottom: 8,
+  },
+  initSub: { 
+    fontFamily: 'Inter-Medium', fontSize: 14, color: '#9CA3AF', 
+    textAlign: 'center', lineHeight: 20,
+  },
+  initDotsRow: { 
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 20,
+  },
+  initDot: { 
+    width: 10, height: 10, borderRadius: 5,
+  },
+
+  // ─── Header ───
   header: { 
     flexDirection: 'row', alignItems: 'center', 
     paddingTop: Platform.OS === 'ios' ? 50 : 20, 
@@ -382,6 +461,7 @@ const styles = StyleSheet.create({
   closeBtn: { padding: 4 },
   headerTitle: { fontFamily: 'Inter-Bold', fontSize: 17, color: '#1A1A1A' },
   
+  // ─── Map ───
   mapContainer: { flex: 1, position: 'relative' },
   map: { width: '100%', height: '100%' },
   
@@ -403,6 +483,7 @@ const styles = StyleSheet.create({
   },
   locateBtnText: { fontFamily: 'Inter-Bold', fontSize: 13, color: PRIMARY },
   
+  // ─── Bottom Card ───
   bottomCard: {
     padding: 24, paddingBottom: Platform.OS === 'ios' ? 34 : 24,
     backgroundColor: '#FFFFFF',
@@ -425,7 +506,7 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: { fontFamily: 'Inter-Bold', fontSize: 16, color: '#FFFFFF' },
 
-  // Form Styles
+  // ─── Form Styles ───
   formContainer: { flex: 1, padding: 20 },
   sectionLabel: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: '#1A1A1A', marginBottom: 8, marginTop: 16 },
   typeRow: { flexDirection: 'row', gap: 12 },

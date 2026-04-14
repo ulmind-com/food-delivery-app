@@ -62,8 +62,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "80c8ea68-a929-45af-a07d-21fc4344ab82"
+        "projectId": "12dba8b4-892a-4f05-8dc8-b8aa27b697c5"
       }
-    }
+    },
+    "owner": "loveb_le046"
   }
 }
