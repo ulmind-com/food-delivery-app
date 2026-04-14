@@ -13,8 +13,8 @@ const NativeMapView = forwardRef((props: any, ref: any) => {
   const webRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
 
-  const lat = initialRegion?.latitude ?? 22.0531;
-  const lng = initialRegion?.longitude ?? 88.0772;
+  const initialLat = useRef(initialRegion?.latitude ?? 22.0531);
+  const initialLng = useRef(initialRegion?.longitude ?? 88.0772);
   const zoom = 15;
 
   useImperativeHandle(ref, () => ({
@@ -28,7 +28,7 @@ const NativeMapView = forwardRef((props: any, ref: any) => {
     },
   }));
 
-  const leafletHTML = `
+  const leafletHTML = React.useMemo(() => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -43,7 +43,7 @@ const NativeMapView = forwardRef((props: any, ref: any) => {
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map', { zoomControl: false }).setView([${lat}, ${lng}], ${zoom});
+        var map = L.map('map', { zoomControl: false }).setView([${initialLat.current}, ${initialLng.current}], ${zoom});
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap',
           maxZoom: 19,
@@ -63,7 +63,7 @@ const NativeMapView = forwardRef((props: any, ref: any) => {
       </script>
     </body>
     </html>
-  `;
+  `, []);
 
   const handleMessage = (event: any) => {
     try {

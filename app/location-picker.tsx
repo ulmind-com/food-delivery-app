@@ -57,10 +57,14 @@ export default function LocationPickerScreen() {
 
       if (status === 'granted') {
         try {
-          let location = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
+          // ─── SUPER FAST INITIAL LOAD ───
+          let location = await ExpoLocation.getLastKnownPositionAsync();
+          if (!location) {
+            location = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
+          }
           const initialRegion = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
+            latitude: location!.coords.latitude,
+            longitude: location!.coords.longitude,
             latitudeDelta: 0.005,
             longitudeDelta: 0.005,
           };
@@ -91,7 +95,13 @@ export default function LocationPickerScreen() {
     } catch {
       try {
         const r = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+            {
+              headers: {
+                'User-Agent': 'FoodieApp/1.0 (contact@ulmind.com)',
+                'Accept-Language': 'en-US,en;q=0.9'
+              }
+            }
         );
         const data = await r.json();
         const addr = data.address || {};
@@ -298,7 +308,7 @@ export default function LocationPickerScreen() {
           </View>
 
           {/* Bottom Display Card */}
-          <Animated.View entering={SlideInUp.springify().damping(20)} style={styles.bottomCard}>
+          <View style={styles.bottomCard}>
             <View style={styles.addressRow}>
               <View style={styles.pinIconWrap}>
                 <MapPin size={22} color={PRIMARY} fill="#FFF3E0" />
@@ -310,14 +320,14 @@ export default function LocationPickerScreen() {
                     <Text style={styles.loadingText}>Fetching location details...</Text>
                   </View>
                 ) : resolvedAddress ? (
-                  <Animated.View entering={FadeIn.duration(400)}>
+                  <View>
                     <Text style={styles.addressLine1} numberOfLines={1}>
                       {resolvedAddress.displayName || [resolvedAddress.addressLine1, resolvedAddress.addressLine2].filter(Boolean).join(", ")}
                     </Text>
                     <Text style={styles.addressLine2} numberOfLines={2}>
                       {[resolvedAddress.city, resolvedAddress.state, resolvedAddress.postalCode].filter(Boolean).join(", ")}
                     </Text>
-                  </Animated.View>
+                  </View>
                 ) : (
                   <Text style={styles.loadingText}>Move map to find location</Text>
                 )}
@@ -332,7 +342,7 @@ export default function LocationPickerScreen() {
               <Text style={styles.confirmBtnText}>Confirm Location</Text>
               <CheckCircle size={18} color="#FFF" />
             </TouchableOpacity>
-          </Animated.View>
+          </View>
         </>
       ) : (
         /* Form Area */
