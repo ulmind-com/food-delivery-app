@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, 
-  ActivityIndicator, Alert, Platform, Dimensions, FlatList 
+  ActivityIndicator, Alert, Platform, Dimensions, FlatList, Linking 
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -471,6 +471,20 @@ export default function CheckoutScreen() {
           </Animated.View>
         )}
 
+        {/* Powered by ULMiND */}
+        <TouchableOpacity 
+          style={styles.poweredByWrap} 
+          activeOpacity={0.7} 
+          onPress={() => Linking.openURL('https://www.ulmind.com')}
+        >
+          <Text style={styles.poweredByText}>Powered by</Text>
+          <Image 
+            source={require('../assets/logo/ulmind-logo.png')} 
+            style={styles.poweredByLogo} 
+            contentFit="contain" 
+          />
+        </TouchableOpacity>
+
         {/* Bottom spacer for fixed bar */}
         <View style={{ height: 200 }} />
       </ScrollView>
@@ -712,4 +726,24 @@ const styles = StyleSheet.create({
   emptyDesc: { fontFamily: 'Inter-Medium', fontSize: 14, color: MUTED, textAlign: 'center' },
   browsePrimaryBtn: { marginTop: 24, backgroundColor: PRIMARY, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
   browsePrimaryBtnText: { fontFamily: 'Inter-Bold', fontSize: 15, color: '#FFFFFF' },
+
+  // Powered by ULMiND
+  poweredByWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 18,
+    marginTop: 8,
+  },
+  poweredByText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 13,
+    color: '#9CA3AF',
+    letterSpacing: 0.3,
+  },
+  poweredByLogo: {
+    width: 105,
+    height: 28,
+  },
 });

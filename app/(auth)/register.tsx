@@ -4,16 +4,52 @@ import {
   Platform, TextInput, ScrollView, Image, ActivityIndicator, Dimensions, Pressable
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { Mail, Lock, Eye, EyeOff, User, Phone, ArrowLeft } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeIn, FadeInUp } from 'react-native-reanimated';
+import { Mail, Lock, Eye, EyeOff, User, Phone, Check } from 'lucide-react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { authApi } from '../../services/api';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path, Defs, Pattern, Rect, Line } from 'react-native-svg';
 
 const { width, height } = Dimensions.get('window');
-const PRIMARY = '#FC8019';
+const PRIMARY = '#FC8019'; // User requested Orange instead of Yellow
 const TEXT_COLOR = '#1A1A1A';
-const MUTED = '#9CA3AF';
-const BORDER = '#E5E7EB';
-const INPUT_BG = '#F9FAFB';
+const BORDER = '#F3F4F6';
+
+const BackgroundGrid = () => (
+  <View style={StyleSheet.absoluteFill}>
+    {/* Base Background is Black */}
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000' }]} />
+    
+    {/* Top Sunset Glow - Orange */}
+    <LinearGradient
+      colors={['#FC8019', '#000000']}
+      locations={[0, 0.45]}
+      style={StyleSheet.absoluteFill}
+    />
+    
+    {/* Perspective Grid Line Overlay */}
+    <View style={{ position: 'absolute', top: '35%', left: 0, right: 0, height: height * 0.3, zIndex: 0 }}>
+      {/* Fade the top edge of the grid */}
+      <LinearGradient colors={['#000000', 'transparent']} locations={[0, 0.3]} style={{ position: 'absolute', top: -1, left: 0, right: 0, height: 40, zIndex: 1 }} />
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        {/* Horizontal lines */}
+        <Line x1="0" y1="10%" x2="100%" y2="10%" stroke="rgba(252,128,25,0.2)" strokeWidth="1" />
+        <Line x1="0" y1="25%" x2="100%" y2="25%" stroke="rgba(252,128,25,0.3)" strokeWidth="1" />
+        <Line x1="0" y1="45%" x2="100%" y2="45%" stroke="rgba(252,128,25,0.4)" strokeWidth="1.2" />
+        <Line x1="0" y1="75%" x2="100%" y2="75%" stroke="rgba(252,128,25,0.5)" strokeWidth="1.5" />
+        
+        {/* Perspective radiating lines */}
+        <Path d={`M${width/2} 0 L${width/2} ${height * 0.3}`} stroke="rgba(252,128,25,0.4)" strokeWidth="1.2" />
+        <Path d={`M${width/2} 0 L${width*0.25} ${height * 0.3}`} stroke="rgba(252,128,25,0.4)" strokeWidth="1.2" />
+        <Path d={`M${width/2} 0 L${width*0.75} ${height * 0.3}`} stroke="rgba(252,128,25,0.4)" strokeWidth="1.2" />
+        <Path d={`M${width/2} 0 L${-width*0.1} ${height * 0.3}`} stroke="rgba(252,128,25,0.4)" strokeWidth="1.2" />
+        <Path d={`M${width/2} 0 L${width*1.1} ${height * 0.3}`} stroke="rgba(252,128,25,0.4)" strokeWidth="1.2" />
+        <Path d={`M${width/2} 0 L${-width*0.5} ${height * 0.3}`} stroke="rgba(252,128,25,0.3)" strokeWidth="1" />
+        <Path d={`M${width/2} 0 L${width*1.5} ${height * 0.3}`} stroke="rgba(252,128,25,0.3)" strokeWidth="1" />
+      </Svg>
+    </View>
+  </View>
+);
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -24,14 +60,20 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   
   const [showPwd, setShowPwd] = useState(false);
+  const [agree, setAgree] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  
   const [focusField, setFocusField] = useState<string | null>(null);
   const inputRefs = useRef<Record<string, TextInput | null>>({});
 
   const handleRegister = async () => {
     if (!name.trim() || !email.trim() || !mobile.trim() || !password.trim()) {
       setErrorMsg('Please fill in all fields');
+      return;
+    }
+    if (!agree) {
+      setErrorMsg('You must agree to the Terms & Conditions');
       return;
     }
     setErrorMsg('');
@@ -48,18 +90,18 @@ export default function RegisterScreen() {
   };
 
   const renderInputRow = (
-    field: string, val: string, setVal: any, placeholder: string,
-    icon: any, config: any = {}
+    field: string, val: string, setVal: any, label: string, placeholder: string,
+    IconComp: any, config: any = {}
   ) => {
     const isFocused = focusField === field;
     return (
       <Animated.View entering={FadeInDown.delay(config.delay).springify().damping(16)}>
-        <Text style={styles.label}>{config.label}</Text>
+        <Text style={styles.label}>{label}</Text>
         <Pressable 
           onPress={() => inputRefs.current[field]?.focus()}
           style={[styles.inputWrap, isFocused && styles.inputFocused]}
         >
-          {icon}
+          <IconComp size={18} color="#6B7280" style={{ marginRight: 8 }} />
           <TextInput
             ref={(r) => { inputRefs.current[field] = r; }}
             style={styles.input}
@@ -75,7 +117,7 @@ export default function RegisterScreen() {
           />
           {config.secure && (
             <Pressable onPress={() => setShowPwd(!showPwd)} hitSlop={15}>
-              {showPwd ? <EyeOff size={20} color={MUTED} /> : <Eye size={20} color={MUTED} />}
+              {showPwd ? <EyeOff size={18} color="#6B7280" /> : <Eye size={18} color="#6B7280" />}
             </Pressable>
           )}
         </Pressable>
@@ -86,28 +128,19 @@ export default function RegisterScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+      <BackgroundGrid />
+      
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" bounces={false}>
           
-          {/* Header Action */}
-          <Animated.View entering={FadeInDown.delay(50).springify().damping(14)} style={styles.headerRow}>
-            <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={15}>
-              <View style={styles.backCircle}>
-                <ArrowLeft size={20} color={TEXT_COLOR} />
-              </View>
-              <Text style={styles.backLabel}>Back to Login</Text>
-            </Pressable>
-          </Animated.View>
-
-          {/* OP Hero Area */}
+          {/* Hero Area */}
           <View style={styles.heroArea}>
-            <Animated.View entering={FadeIn.delay(100).duration(800)} style={styles.heroBgShape1} />
-            <Animated.View entering={FadeInDown.delay(150).springify().damping(14)}>
-              <Image source={require('../../assets/images/delivery-hero.png')} style={styles.heroImage} resizeMode="contain" />
+            <Animated.View entering={FadeInDown.delay(100).springify().damping(14)}>
+              <Image source={require('../../assets/logo/restaurantLOGO.png')} style={styles.heroImage} resizeMode="contain" />
             </Animated.View>
             <Animated.View entering={FadeInDown.delay(200).springify().damping(14)}>
-              <Text style={styles.title}>Join the OP Family</Text>
-              <Text style={styles.subtext}>Create an account to get your favorite meals delivered fast! 🚀</Text>
+              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtext}>Step into a place where taste meets comfort and joy.</Text>
             </Animated.View>
           </View>
 
@@ -119,27 +152,39 @@ export default function RegisterScreen() {
               </Animated.View>
             ) : null}
 
-            {renderInputRow('name', name, setName, 'John Doe', 
-              <User size={20} color={focusField === 'name' ? PRIMARY : MUTED} />, 
-              { label: 'Full Name', delay: 300, capitalize: 'words' }
+            {renderInputRow(
+              'name', name, setName, 'Full Name', 'David Johnson', User, 
+              { delay: 300, capitalize: 'words' }
             )}
 
-            {renderInputRow('email', email, setEmail, 'name@example.com', 
-              <Mail size={20} color={focusField === 'email' ? PRIMARY : MUTED} />, 
-              { label: 'Email Address', delay: 350, keyboard: 'email-address' }
+            {renderInputRow(
+              'email', email, setEmail, 'Email Address', 'davidjonson@gmail.com', Mail, 
+              { delay: 350, keyboard: 'email-address' }
             )}
 
-            {renderInputRow('mobile', mobile, setMobile, '+91 9999999999', 
-              <Phone size={20} color={focusField === 'mobile' ? PRIMARY : MUTED} />, 
-              { label: 'Phone Number', delay: 400, keyboard: 'phone-pad' }
+            {renderInputRow(
+              'mobile', mobile, setMobile, 'Phone Number', '+1 234 567 890', Phone, 
+              { delay: 400, keyboard: 'phone-pad' }
             )}
 
-            {renderInputRow('password', password, setPassword, '••••••••', 
-              <Lock size={20} color={focusField === 'password' ? PRIMARY : MUTED} />, 
-              { label: 'Password', delay: 450, secure: true }
+            {renderInputRow(
+              'password', password, setPassword, 'Enter Password', 'xxxxxxxx', Lock, 
+              { delay: 450, secure: true }
             )}
 
-            <Animated.View entering={FadeInDown.delay(550).springify().damping(16)}>
+            {/* Terms and conditions checkbox */}
+            <Animated.View entering={FadeInDown.delay(500).springify().damping(16)} style={styles.termsWrap}>
+              <TouchableOpacity style={styles.checkboxContainer} onPress={() => setAgree(!agree)} activeOpacity={0.8}>
+                <View style={[styles.checkbox, agree && styles.checkboxActive]}>
+                  {agree && <Check size={12} color="#FFFFFF" />}
+                </View>
+                <Text style={styles.termsText} numberOfLines={2}>
+                  I agree to the <Text style={styles.termsBold}>Terms & Conditions</Text> and <Text style={styles.termsBold}>Privacy Policy</Text>
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Animated.View entering={FadeInDown.delay(600).springify().damping(16)}>
               <TouchableOpacity
                 style={[styles.ctaBtn, loading && { opacity: 0.7 }]}
                 activeOpacity={0.85}
@@ -150,10 +195,10 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(650).springify().damping(16)} style={styles.footer}>
+            <Animated.View entering={FadeInDown.delay(700).springify().damping(16)} style={styles.footer}>
               <Text style={styles.footerTxt}>Already have an account? </Text>
               <TouchableOpacity onPress={() => router.replace('/(auth)/login')} hitSlop={10}>
-                <Text style={styles.footerLink}>Login Instead</Text>
+                <Text style={styles.footerLink}>Log In</Text>
               </TouchableOpacity>
             </Animated.View>
 
@@ -165,56 +210,66 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  scrollContent: { flexGrow: 1, paddingBottom: 50 },
+  container: { flex: 1, backgroundColor: '#000000' },
+  gridContainer: { position: 'absolute', top: height * 0.45, left: 0, right: 0, height: height * 0.5 },
+  scrollContent: { flexGrow: 1 },
   
-  headerRow: { paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 10, zIndex: 10 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  backCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
-  backLabel: { fontFamily: 'Inter-SemiBold', fontSize: 15, color: TEXT_COLOR },
-
   // OP Hero
   heroArea: {
     alignItems: 'center',
-    paddingHorizontal: 28,
-    position: 'relative',
+    paddingTop: Platform.OS === 'ios' ? 70 : 60,
+    paddingBottom: 25,
+    minHeight: height * 0.42,
+    justifyContent: 'center'
   },
-  heroBgShape1: {
-    position: 'absolute', top: 30,
-    width: width * 0.8, height: width * 0.8, borderRadius: width * 0.4,
-    backgroundColor: 'rgba(252, 128, 25, 0.06)',
-    zIndex: -1,
-  },
-  heroImage: { width: width * 0.45, height: width * 0.45, marginBottom: 12 },
-  title: { fontFamily: 'Inter-Black', fontSize: 26, color: TEXT_COLOR, textAlign: 'center', letterSpacing: -0.5 },
-  subtext: { fontFamily: 'Inter-Medium', fontSize: 13, color: MUTED, textAlign: 'center', marginTop: 4, paddingHorizontal: 10 },
+  heroImage: { width: width * 0.65, height: 150, marginBottom: 16 }, // Adjusted for register to save space for form
+  title: { fontFamily: 'Inter-Black', fontSize: 30, color: '#FFFFFF', textAlign: 'center', letterSpacing: -0.5 },
+  subtext: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#D1D5DB', textAlign: 'center', marginTop: 4, paddingHorizontal: 10 },
 
-  // Form
-  formArea: { flex: 1, paddingHorizontal: 28, paddingTop: 20 },
-  errorBox: {
-    backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: '#FCA5A5',
+  // Form Area
+  formArea: { 
+    flex: 1, 
+    backgroundColor: '#FFFFFF', 
+    borderTopLeftRadius: 36, 
+    borderTopRightRadius: 36, 
+    paddingHorizontal: 28, 
+    paddingTop: 25,
+    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 20,
   },
+  errorBox: { backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#FCA5A5' },
   errorText: { fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#DC2626', textAlign: 'center' },
   
-  label: { fontFamily: 'Inter-Bold', fontSize: 12, color: TEXT_COLOR, marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#4B5563', marginBottom: 8, marginTop: 12 },
   inputWrap: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: INPUT_BG,
-    borderWidth: 2, borderColor: BORDER, borderRadius: 16,
-    paddingHorizontal: 16, height: 56, gap: 12,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
+    borderWidth: 1.5, borderColor: BORDER, borderRadius: 16,
+    paddingHorizontal: 16, height: 52,
   },
-  inputFocused: { borderColor: PRIMARY, backgroundColor: '#FFFFFF', shadowColor: PRIMARY, shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  inputFocused: { borderColor: PRIMARY },
   input: { flex: 1, fontFamily: 'Inter-Medium', fontSize: 15, color: TEXT_COLOR, height: '100%', paddingVertical: 0 },
   
-  ctaBtn: {
-    backgroundColor: PRIMARY, borderRadius: 16, height: 56,
-    alignItems: 'center', justifyContent: 'center',
-    marginTop: 35,
-    shadowColor: PRIMARY, shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8,
+  termsWrap: { marginTop: 20, marginBottom: 25 },
+  checkboxContainer: { flexDirection: 'row', alignItems: 'center', paddingRight: 20, gap: 10 },
+  checkbox: { 
+    width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: BORDER,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFA'
   },
-  ctaText: { fontFamily: 'Inter-Bold', fontSize: 16, color: '#FFFFFF', letterSpacing: 0.5 },
-  
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 30 },
-  footerTxt: { fontFamily: 'Inter-Medium', fontSize: 14, color: MUTED },
-  footerLink: { fontFamily: 'Inter-Bold', fontSize: 14, color: PRIMARY },
+  checkboxActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  termsText: { fontFamily: 'Inter-Medium', fontSize: 12, color: '#6B7280', lineHeight: 18, flex: 1 },
+  termsBold: { fontFamily: 'Inter-Bold', color: '#1A1A1A' },
+
+  ctaBtn: {
+    backgroundColor: PRIMARY, borderRadius: 28, height: 56, // Large Pill
+    alignItems: 'center', justifyContent: 'center',
+  },
+  ctaText: { fontFamily: 'Inter-Bold', fontSize: 16, color: TEXT_COLOR, letterSpacing: 0.3 }, // Black text on orange
+
+  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 40 },
+  footerTxt: { fontFamily: 'Inter-Medium', fontSize: 14, color: '#6B7280' },
+  footerLink: { fontFamily: 'Inter-Bold', fontSize: 14, color: TEXT_COLOR },
 });

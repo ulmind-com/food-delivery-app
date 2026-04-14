@@ -239,158 +239,102 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
   },
 
   incrementItem: async (itemId) => {
-    let item = get().items.find((i) => i.itemId === itemId);
-    if (!item) return;
+    const item = get().items.find((i) => i.itemId === itemId);
+    if (!item || itemId.startsWith('temp_')) return;
 
-    const targetQuantity = item.quantity + 1;
+    const prevQuantity = item.quantity;
     const priceDelta = item.price;
 
-    // 1. Optimistic Instant Update
+    // Instant optimistic update + lock fetchCart from overwriting
     set((s) => ({
       syncCount: s.syncCount + 1,
       items: s.items.map((i) =>
-        i.itemId === itemId ? { ...i, quantity: targetQuantity } : i
+        i.itemId === itemId ? { ...i, quantity: prevQuantity + 1 } : i
       ),
       totalPrice: s.totalPrice + priceDelta,
       finalPrice: s.finalPrice + priceDelta,
     }));
 
-    // 2. Race-condition prevention: wait for real ID if necessary BEFORE API call
-    let apiItemId = itemId;
-    if (apiItemId.startsWith('temp_')) {
-      await new Promise(res => setTimeout(res, 600));
-      const realItem = get().items.find((i) => i._id === item._id);
-      if (!realItem || realItem.itemId.startsWith('temp_')) {
-         // Fail safely
-         set((s) => ({
-           syncCount: s.syncCount - 1,
-           items: s.items.map((i) =>
-             i.itemId === itemId ? { ...i, quantity: item.quantity } : i
-           ),
-           totalPrice: s.totalPrice - priceDelta,
-           finalPrice: s.finalPrice - priceDelta,
-         }));
-         return; 
-      }
-      apiItemId = realItem.itemId;
-    }
-
     try {
-      await cartApi.updateCartItem(apiItemId, {
-        quantity: targetQuantity,
-      });
-      set((s) => ({ syncCount: s.syncCount - 1 }));
-      await get().fetchCart();
+      await cartApi.updateCartItem(itemId, { quantity: prevQuantity + 1 });
     } catch {
-      // Rollback
+      // Rollback to exact previous state
       set((s) => ({
-        syncCount: s.syncCount - 1,
         items: s.items.map((i) =>
-          i.itemId === itemId ? { ...i, quantity: item.quantity } : i
+          i.itemId === itemId ? { ...i, quantity: prevQuantity } : i
         ),
         totalPrice: s.totalPrice - priceDelta,
         finalPrice: s.finalPrice - priceDelta,
       }));
+    } finally {
+      // Unlock — allow fetchCart to work again
+      set((s) => ({ syncCount: Math.max(0, s.syncCount - 1) }));
     }
   },
 
   decrementItem: async (itemId) => {
-    let item = get().items.find((i) => i.itemId === itemId);
-    if (!item) return;
+    const item = get().items.find((i) => i.itemId === itemId);
+    if (!item || itemId.startsWith('temp_')) return;
 
     if (item.quantity <= 1) {
-      // Remove item
       return get().removeItem(itemId);
     }
 
-    const targetQuantity = item.quantity - 1;
+    const prevQuantity = item.quantity;
     const priceDelta = item.price;
 
-    // 1. Optimistic Instant Update
+    // Instant optimistic update + lock fetchCart from overwriting
     set((s) => ({
+      syncCount: s.syncCount + 1,
       items: s.items.map((i) =>
-        i.itemId === itemId ? { ...i, quantity: targetQuantity } : i
+        i.itemId === itemId ? { ...i, quantity: prevQuantity - 1 } : i
       ),
       totalPrice: s.totalPrice - priceDelta,
       finalPrice: s.finalPrice - priceDelta,
     }));
 
-    // 2. Race condition handler
-    let apiItemId = itemId;
-    if (apiItemId.startsWith('temp_')) {
-      await new Promise(res => setTimeout(res, 600));
-      const realItem = get().items.find((i) => i._id === item._id);
-      if (!realItem || realItem.itemId.startsWith('temp_')) {
-         set((s) => ({
-           items: s.items.map((i) =>
-             i.itemId === itemId ? { ...i, quantity: item.quantity } : i
-           ),
-           totalPrice: s.totalPrice + priceDelta,
-           finalPrice: s.finalPrice + priceDelta,
-         }));
-         return; 
-      }
-      apiItemId = realItem.itemId;
-    }
-
     try {
-      const { data } = await cartApi.updateCartItem(apiItemId, {
-        quantity: targetQuantity,
-      });
-      const parsed = parseCartResponse(data);
-      set({ ...parsed });
+      await cartApi.updateCartItem(itemId, { quantity: prevQuantity - 1 });
     } catch {
-      // Rollback
+      // Rollback to exact previous state
       set((s) => ({
         items: s.items.map((i) =>
-          i.itemId === itemId ? { ...i, quantity: item.quantity } : i
+          i.itemId === itemId ? { ...i, quantity: prevQuantity } : i
         ),
         totalPrice: s.totalPrice + priceDelta,
         finalPrice: s.finalPrice + priceDelta,
       }));
+    } finally {
+      set((s) => ({ syncCount: Math.max(0, s.syncCount - 1) }));
     }
   },
 
   removeItem: async (itemId) => {
     const prev = get().items;
-    let itemToRemove = prev.find((i) => i.itemId === itemId);
-    if (!itemToRemove) return;
+    const itemToRemove = prev.find((i) => i.itemId === itemId);
+    if (!itemToRemove || itemId.startsWith('temp_')) return;
     
     const deduction = itemToRemove.price * itemToRemove.quantity;
     
-    // 1. Optimistic Fast Clear
+    // Instant optimistic removal + lock fetchCart
     set((s) => ({
+      syncCount: s.syncCount + 1,
       items: s.items.filter((i) => i.itemId !== itemId),
       totalPrice: s.totalPrice - deduction,
       finalPrice: s.finalPrice - deduction,
     }));
 
-    // 2. Race condition handler
-    let apiItemId = itemId;
-    if (apiItemId.startsWith('temp_')) {
-      await new Promise(res => setTimeout(res, 600));
-      itemToRemove = get().items.find((i) => i._id === itemToRemove?._id);
-      if (!itemToRemove || itemToRemove.itemId.startsWith('temp_')) {
-        set((s) => ({
-          items: prev,
-          totalPrice: s.totalPrice + deduction,
-          finalPrice: s.finalPrice + deduction,
-        }));
-        return;
-      }
-      apiItemId = itemToRemove.itemId;
-    }
-
     try {
-      const { data } = await cartApi.removeFromCart(apiItemId);
-      const parsed = parseCartResponse(data);
-      set({ ...parsed });
+      await cartApi.removeFromCart(itemId);
     } catch {
+      // Rollback
       set((s) => ({
         items: prev,
         totalPrice: s.totalPrice + deduction,
         finalPrice: s.finalPrice + deduction,
       }));
+    } finally {
+      set((s) => ({ syncCount: Math.max(0, s.syncCount - 1) }));
     }
   },
 

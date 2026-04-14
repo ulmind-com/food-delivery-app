@@ -53,7 +53,7 @@ interface AuthState {
   // Actions
   setUser: (user: User) => void;
   setToken: (token: string) => void;
-  login: (user: User, token: string) => void;
+  login: (user: User, token: string) => Promise<void>;
   logout: () => void;
   loadFromStorage: () => Promise<void>;
 
@@ -77,10 +77,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     storage.setItem('auth_token', token);
   },
 
-  login: (user, token) => {
+  login: async (user, token) => {
     set({ user, token, isLoading: false });
-    storage.setItem('auth_token', token);
-    storage.setItem('auth_user', JSON.stringify(user));
+    await Promise.all([
+      storage.setItem('auth_token', token),
+      storage.setItem('auth_user', JSON.stringify(user)),
+    ]);
   },
 
   logout: () => {

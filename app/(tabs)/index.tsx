@@ -53,9 +53,9 @@ const PROMOS = [
   { id: '3', title: 'Try New', sub: 'Biriyani Collection', bg: '#7C3AED', emoji: '🍛' },
 ];
 
-// ─── Shimmer Placeholder ──────────────────────────────
 function ShimmerBlock({ w, h, r = 8, style }: { w: number | string; h: number; r?: number; style?: any }) {
   const shimmer = useSharedValue(0.3);
+
   useEffect(() => {
     shimmer.value = withRepeat(
       withSequence(

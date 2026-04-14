@@ -49,6 +49,9 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
   const displayPrice = item.price || item.variants?.[0]?.price || 0;
   const imageUrl = resolveImageURL(item.image || item.imageURL);
 
+  // If item was JUST added, it has a temp_ ID until fetchCart completes
+  const isSyncing = cartItem?.itemId?.startsWith('temp_') ?? false;
+
   const handleAdd = (e?: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
     if (!isAuthenticated()) {
@@ -67,13 +70,13 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
   const handleIncrement = (e?: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
     if (!isAuthenticated()) return router.push('/(auth)/login');
-    if (cartItem) incrementItem(cartItem.itemId);
+    if (cartItem && !isSyncing) incrementItem(cartItem.itemId);
   };
 
   const handleDecrement = (e?: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
     if (!isAuthenticated()) return router.push('/(auth)/login');
-    if (cartItem) decrementItem(cartItem.itemId);
+    if (cartItem && !isSyncing) decrementItem(cartItem.itemId);
   };
 
   const hasDiscount = item.hasDiscount;
@@ -153,10 +156,11 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
         {/* Add Button — uses Pressable with stopPropagation */}
         <View style={styles.actionContainer}>
           {cartItem ? (
-            <View style={[styles.counterContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.counterContainer, { backgroundColor: colors.card, borderColor: colors.border, opacity: isSyncing ? 0.5 : 1 }]}>
               <Pressable
                 style={styles.counterButton}
                 onPress={handleDecrement}
+                disabled={isSyncing}
               >
                 <Minus size={14} color={colors.success} />
               </Pressable>
@@ -164,6 +168,7 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
               <Pressable
                 style={styles.counterButton}
                 onPress={handleIncrement}
+                disabled={isSyncing}
               >
                 <Plus size={14} color={colors.success} />
               </Pressable>
