@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, createContext, useContext } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, Dimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,6 @@ import Animated, {
   withTiming,
   Easing,
   interpolate,
-  interpolateColor,
 } from 'react-native-reanimated';
 import { useCartStore } from '../../store/useCartStore';
 
@@ -18,7 +17,9 @@ const { width } = Dimensions.get('window');
 const PRIMARY = '#FC8019';
 const INACTIVE = '#B0B8C5';
 const TAB_BG = '#FFFFFF';
-const PILL_BG = '#FFF5ED'; // Warm orange tint for active pill
+const PILL_BG = '#FFF5ED';
+
+export const TabScrollContext = createContext<any>(null);
 
 const ICONS: Record<string, any> = {
   index: Home,
@@ -37,7 +38,6 @@ const TabBarButton = ({ route, label, isFocused, onPress, badgeCount }: any) => 
     });
   }, [isFocused]);
 
-  // Animated pill background behind active tab
   const pillStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: interpolate(progress.value, [0, 1], [0.6, 1]) },
@@ -46,7 +46,6 @@ const TabBarButton = ({ route, label, isFocused, onPress, badgeCount }: any) => 
     opacity: progress.value,
   }));
 
-  // Icon lifts up and scales when active
   const iconStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: interpolate(progress.value, [0, 1], [1, 1.1]) },
@@ -54,7 +53,6 @@ const TabBarButton = ({ route, label, isFocused, onPress, badgeCount }: any) => 
     ],
   }));
 
-  // Label fades in and slides up
   const labelStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.5, 1], [0.5, 0.8, 1]),
     transform: [
@@ -70,7 +68,6 @@ const TabBarButton = ({ route, label, isFocused, onPress, badgeCount }: any) => 
       style={styles.tabBtn}
       android_ripple={{ color: 'rgba(252,128,25,0.08)', borderless: true }}
     >
-      {/* Background pill — appears when tab is active */}
       <Animated.View style={[styles.activePill, pillStyle]} />
 
       <Animated.View style={[styles.iconWrap, iconStyle]}>
@@ -79,24 +76,16 @@ const TabBarButton = ({ route, label, isFocused, onPress, badgeCount }: any) => 
           color={isFocused ? PRIMARY : INACTIVE} 
           strokeWidth={isFocused ? 2.5 : 1.8} 
         />
-        
-        {/* Badge */}
         {badgeCount > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
-              {badgeCount > 9 ? '9+' : badgeCount}
+              {badgeCount > 9 ? '9+' : parseInt(badgeCount)}
             </Text>
           </View>
         )}
       </Animated.View>
       
-      <Animated.Text 
-        style={[
-          styles.tabLabel, 
-          isFocused && styles.tabLabelActive, 
-          labelStyle,
-        ]}
-      >
+      <Animated.Text style={[styles.tabLabel, isFocused && styles.tabLabelActive, labelStyle]}>
         {label}
       </Animated.Text>
     </Pressable>
@@ -107,39 +96,37 @@ const TabBarButton = ({ route, label, isFocused, onPress, badgeCount }: any) => 
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
   const cartItemsCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0));
-
-  // Stick to absolute bottom with safe area padding
   const bottomPadding = Platform.OS === 'ios' ? Math.max(insets.bottom, 8) : 8;
 
+  // Consume scroll vector to hide tabbar
+  const scrollValue = useContext(TabScrollContext);
+  
+  const animatedBarStyle = useAnimatedStyle(() => {
+    if (!scrollValue) return {};
+    return {
+      transform: [{ 
+        translateY: withTiming(scrollValue.value * 120, { 
+          duration: 350, 
+          easing: Easing.out(Easing.cubic) 
+        }) 
+      }]
+    };
+  });
+
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: bottomPadding }]}>
-      {/* Top edge highlight line */}
+    <Animated.View style={[styles.tabBarContainer, { paddingBottom: bottomPadding }, animatedBarStyle]}>
       <View style={styles.tabBarTopLine} />
-      
       <View style={styles.tabBarInner}>
         {state.routes.map((route: any, index: number) => {
           if (route.name === 'two' || route.name === 'profile') return null;
 
           const { options } = descriptors[route.key];
-          const label =
-            options.tabBarLabel !== undefined
-              ? options.tabBarLabel
-              : options.title !== undefined
-              ? options.title
-              : route.name;
-
+          const label = options.tabBarLabel !== undefined ? options.tabBarLabel : options.title !== undefined ? options.title : route.name;
           const isFocused = state.index === index;
 
           const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
           };
 
           return (
@@ -154,18 +141,19 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
           );
         })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 export default function TabLayout() {
+  const isTabBarHidden = useSharedValue(0);
+
   return (
-    <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
+    <TabScrollContext.Provider value={isTabBarHidden}>
+      <Tabs
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{ headerShown: false }}
+      >
       <Tabs.Screen
         name="index"
         options={{
@@ -197,6 +185,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </TabScrollContext.Provider>
   );
 }
 

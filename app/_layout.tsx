@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, Dimensions, Text } from 'react-native';
 import LottieView from 'lottie-react-native';
-import Animated, { FadeOut, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeOut, FadeInDown, FadeIn, ZoomIn } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
+import { Audio } from 'expo-av';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -60,7 +63,21 @@ function RootLayoutInner() {
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
 
   useEffect(() => {
+    async function playSplashSound() {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: 'https://www.myinstants.com/media/sounds/discord-notification.mp3' }
+        );
+        await sound.setVolumeAsync(1.0);
+        await sound.playAsync();
+        setTimeout(() => sound.unloadAsync(), 3000); // Cleanup after played
+      } catch (error) {
+        console.log("Audio play error:", error);
+      }
+    }
+
     if (fontsLoaded && !authLoading) {
+      playSplashSound();
       SplashScreen.hideAsync();
       setTimeout(() => setShowAnimatedSplash(false), 2800); // slightly longer for the text animations
     }
@@ -75,29 +92,42 @@ function RootLayoutInner() {
       <StatusBar style="dark" />
       {showAnimatedSplash && (
         <Animated.View
-          exiting={FadeOut.duration(500)}
+          exiting={FadeOut.duration(600)}
           pointerEvents={fontsLoaded && !authLoading ? 'none' : 'auto'}
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: '#FFF5EC', zIndex: 9999, alignItems: 'center', justifyContent: 'center' }]}
+          style={[StyleSheet.absoluteFillObject, { zIndex: 9999 }]}
         >
-          <LottieView
-            source={require('../public/loading-animation.json')}
-            autoPlay
-            loop={false}
-            style={{ width: width * 0.9, height: width * 0.9 }}
-            speed={0.9}
-          />
-          <Animated.Text
-            entering={FadeInDown.delay(300).springify().damping(12)}
-            style={{ fontFamily: 'Inter-Black', fontSize: 32, color: '#FC8019', marginTop: -55, letterSpacing: -0.5 }}
+          <LinearGradient
+            colors={['#FF4122', '#F96C00']} // Premium ultra-vibrant gradient (Swiggy/Zomato pro feel)
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]}
           >
-            QuickBite
-          </Animated.Text>
-          <Animated.Text
-            entering={FadeInDown.delay(500).springify().damping(14)}
-            style={{ fontFamily: 'Inter-Medium', fontSize: 16, color: '#F97316', opacity: 0.85, marginTop: -2 }}
-          >
-            Delivering happiness to your door
-          </Animated.Text>
+            <Animated.View entering={FadeIn.duration(1200)}>
+              <Image 
+                 source={require('../assets/logo/restaurantLOGO.png')} 
+                 style={{ width: 190, height: 190 }} 
+                 contentFit="contain" 
+              />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(300).duration(800)} style={{ marginTop: 24, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'Inter-Black', fontSize: 34, color: '#FFFFFF', letterSpacing: -1 }}>Haldia Cloud</Text>
+              <Text style={{ fontFamily: 'Inter-Black', fontSize: 34, color: '#FFFFFF', letterSpacing: -1, marginTop: -8 }}>Kitchen</Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(600).duration(800)}>
+               <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: '#FFDDC2', marginTop: 8, letterSpacing: 1, textTransform: 'uppercase' }}>Premium Delivery</Text>
+            </Animated.View>
+
+            {/* Glowing ring animation behind or below */}
+            <Animated.View entering={FadeIn.delay(800).duration(1000)} style={{ position: 'absolute', bottom: 60 }}>
+               <LottieView
+                  source={require('../public/loading-animation.json')}
+                  autoPlay
+                  loop={true}
+                  style={{ width: 80, height: 80, opacity: 0.4 }}
+                  speed={0.8}
+               />
+            </Animated.View>
+          </LinearGradient>
         </Animated.View>
       )}
       <Stack

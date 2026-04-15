@@ -253,15 +253,17 @@ export default function CheckoutScreen() {
               </View>
             </View>
           ) : (
-            <TouchableOpacity onPress={() => router.push('/addresses')} style={styles.addAddressCard}>
-              <View style={styles.addAddressCircle}>
-                <Plus size={24} color={PRIMARY} />
+            <TouchableOpacity onPress={() => router.push('/addresses')} style={styles.addAddressCardNew}>
+              <View style={styles.addAddressLeft}>
+                 <MapPin size={22} color={PRIMARY} strokeWidth={2.5} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.addAddressTitle}>Add Delivery Address</Text>
-                <Text style={styles.addAddressSub}>Select where you want your food delivered</Text>
+              <View style={styles.addAddressMid}>
+                <Text style={styles.addAddressTitleNew}>Add Delivery Address</Text>
+                <Text style={styles.addAddressSubNew}>Choose location for accurate delivery fee</Text>
               </View>
-              <ChevronRight size={20} color={PRIMARY} />
+              <View style={styles.addAddressRight}>
+                <Text style={styles.addAddressBtnText}>ADD</Text>
+              </View>
             </TouchableOpacity>
           )}
         </Animated.View>
@@ -471,19 +473,15 @@ export default function CheckoutScreen() {
           </Animated.View>
         )}
 
-        {/* Powered by ULMiND */}
-        <TouchableOpacity 
-          style={styles.poweredByWrap} 
-          activeOpacity={0.7} 
-          onPress={() => Linking.openURL('https://www.ulmind.com')}
-        >
-          <Text style={styles.poweredByText}>Powered by</Text>
-          <Image 
-            source={require('../assets/logo/ulmind-logo.png')} 
-            style={styles.poweredByLogo} 
-            contentFit="contain" 
-          />
-        </TouchableOpacity>
+        {/* ─── 7. Cancellation Policy ─── */}
+        <Animated.View entering={FadeIn.duration(400).delay(270)} style={styles.section}>
+          <View style={styles.cancellationCard}>
+            <Text style={styles.cancellationTitle}>CANCELLATION POLICY</Text>
+            <Text style={styles.cancellationText}>
+              Help us reduce food waste by avoiding cancellations after placing your order. A 100% cancellation fee will be applied. Cancellations will only be accepted within 3 minutes of placing the order.
+            </Text>
+          </View>
+        </Animated.View>
 
         {/* Bottom spacer for fixed bar */}
         <View style={{ height: 200 }} />
@@ -599,13 +597,17 @@ const styles = StyleSheet.create({
   changeBtn: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: `${PRIMARY}10`, borderRadius: 10, borderWidth: 1, borderColor: `${PRIMARY}30` },
   changeBtnText: { fontFamily: 'Inter-Bold', fontSize: 11, color: PRIMARY },
 
-  addAddressCard: {
+  addAddressCardNew: {
     flexDirection: 'row', alignItems: 'center', padding: 16,
-    backgroundColor: CARD_BG, borderRadius: 20, borderWidth: 2, borderColor: PRIMARY, borderStyle: 'dashed', gap: 14,
+    backgroundColor: CARD_BG, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
-  addAddressCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: `${PRIMARY}15`, alignItems: 'center', justifyContent: 'center' },
-  addAddressTitle: { fontFamily: 'Inter-Bold', fontSize: 15, color: PRIMARY, marginBottom: 2 },
-  addAddressSub: { fontFamily: 'Inter-Medium', fontSize: 11, color: MUTED },
+  addAddressLeft: { width: 40, alignItems: 'flex-start', justifyContent: 'center' },
+  addAddressMid: { flex: 1 },
+  addAddressTitleNew: { fontFamily: 'Inter-Black', fontSize: 14, color: TEXT_COLOR, marginBottom: 3 },
+  addAddressSubNew: { fontFamily: 'Inter-Medium', fontSize: 11, color: MUTED },
+  addAddressRight: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: `${PRIMARY}12` },
+  addAddressBtnText: { fontFamily: 'Inter-Black', fontSize: 11, color: PRIMARY, letterSpacing: 0.5, textTransform: 'uppercase' },
 
   // Items
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
@@ -727,23 +729,27 @@ const styles = StyleSheet.create({
   browsePrimaryBtn: { marginTop: 24, backgroundColor: PRIMARY, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
   browsePrimaryBtnText: { fontFamily: 'Inter-Bold', fontSize: 15, color: '#FFFFFF' },
 
-  // Powered by ULMiND
-  poweredByWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 18,
+  // Cancellation Policy
+  cancellationCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    padding: 16,
     marginTop: 8,
+    borderWidth: 1, 
+    borderColor: BORDER,
   },
-  poweredByText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 13,
-    color: '#9CA3AF',
-    letterSpacing: 0.3,
+  cancellationTitle: {
+    fontFamily: 'Inter-Black',
+    fontSize: 12,
+    color: TEXT_COLOR,
+    letterSpacing: 2,
+    marginBottom: 8,
   },
-  poweredByLogo: {
-    width: 105,
-    height: 28,
+  cancellationText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+    color: MUTED,
+    lineHeight: 18,
+    textAlign: 'justify',
   },
 });

@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import type { Region } from 'react-native-maps';
 import MapView from '../components/NativeMap';
 import * as ExpoLocation from 'expo-location';
-import { MapPin, X, CheckCircle, Navigation, Home, Briefcase } from 'lucide-react-native';
+import { MapPin, X, CheckCircle, Navigation, Home, Briefcase, Search } from 'lucide-react-native';
 import { userApi } from '../services/api';
 import { useLocationStore, SavedAddress } from '../store/useLocationStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -48,6 +48,63 @@ export default function LocationPickerScreen() {
   const [stateForm, setStateForm] = useState('');
   const [postal, setPostal] = useState('');
   const [mobile, setMobile] = useState('');
+
+  // ─── Search Autocomplete State ───
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+    if (!text.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    
+    setShowSearchResults(true);
+    setIsSearching(true);
+    
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&limit=6&countrycodes=in`, {
+          headers: {
+            'User-Agent': 'FoodDeliveryApp/1.0',
+            'Accept-Language': 'en-US,en;q=0.9'
+          }
+        });
+        const data = await response.json();
+        setSearchResults(data);
+      } catch (err) {
+        console.log('Search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 600); // 600ms debounce
+  };
+
+  const selectSearchResult = (item: any) => {
+    const lat = parseFloat(item.lat);
+    const lon = parseFloat(item.lon);
+    
+    setShowSearchResults(false);
+    setSearchQuery(item.name || item.display_name.split(',')[0]); 
+    
+    const newRegion = {
+      latitude: lat,
+      longitude: lon,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    };
+    
+    setRegion(newRegion);
+    mapRef.current?.animateToRegion(newRegion, 500);
+    doReverseGeocode(lat, lon);
+  };
 
   // Initialize Location
   useEffect(() => {
@@ -278,6 +335,48 @@ export default function LocationPickerScreen() {
 
       {step === 'map' ? (
         <>
+          {/* SEARCH OVERLAY */}
+          <View style={styles.searchWrap}>
+            <View style={styles.searchInputWrap}>
+              <Search size={18} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchTextInput}
+                placeholder="Search area, street, landmark..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={handleSearch}
+                onFocus={() => { if(searchQuery.length > 0) setShowSearchResults(true); }}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); setShowSearchResults(false); }}>
+                  <X size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {showSearchResults && (
+              <View style={styles.searchResultsWrap}>
+                {isSearching ? (
+                  <ActivityIndicator size="small" color={PRIMARY} style={{ marginVertical: 20 }} />
+                ) : searchResults.length > 0 ? (
+                  <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 220 }}>
+                    {searchResults.map((item, index) => (
+                      <TouchableOpacity key={index} style={styles.searchResultItem} onPress={() => selectSearchResult(item)}>
+                        <MapPin size={16} color="#6B7280" style={{ marginTop: 2, marginRight: 8 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.searchResultName} numberOfLines={1}>{item.name || item.display_name.split(',')[0]}</Text>
+                          <Text style={styles.searchResultAddress} numberOfLines={1}>{item.display_name}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : searchQuery.length > 2 ? (
+                  <Text style={styles.noResultText}>No matching locations found.</Text>
+                ) : null}
+              </View>
+            )}
+          </View>
+
           {/* Map Area */}
           <View style={styles.mapContainer}>
             {Platform.OS !== 'web' ? (
@@ -533,4 +632,35 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium', fontSize: 15, color: '#1A1A1A', backgroundColor: '#F9FAFB',
   },
   row: { flexDirection: 'row', width: '100%' },
+
+  // Search Overlay
+  searchWrap: {
+    position: 'absolute', top: 16, left: 16, right: 16,
+    zIndex: 20,
+  },
+  searchInputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16, paddingHorizontal: 14, height: 50,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 6,
+  },
+  searchTextInput: {
+    flex: 1, fontFamily: 'Inter-Medium', fontSize: 15, color: '#1A1A1A',
+    paddingHorizontal: 10, height: '100%',
+  },
+  searchResultsWrap: {
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
+    borderRadius: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+    overflow: 'hidden',
+  },
+  searchResultItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  },
+  searchResultName: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: '#1A1A1A' },
+  searchResultAddress: { fontFamily: 'Inter-Regular', fontSize: 12, color: '#6B7280', marginTop: 3 },
+  noResultText: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#6B7280', textAlign: 'center', padding: 20 },
 });

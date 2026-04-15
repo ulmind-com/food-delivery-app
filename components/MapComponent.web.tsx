@@ -62,7 +62,7 @@ export default function MapComponent({ restaurantLat, restaurantLng, userLat, us
       const map = L.map(mapRef.current, {
         center: [centerLat, centerLng],
         zoom: hasUser && hasRestaurant ? 13 : 15,
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: false,
       });
 

@@ -81,7 +81,7 @@ const parseCartResponse = (data: any) => {
   // Parse coupon if applied
   let appliedCoupon: AppliedCoupon | null = null;
   let discountAmount = 0;
-  
+
   // Safely grab the coupon object (ignoring stray Unpopulated String IDs from the backend)
   const rawCouponObj = data.appliedCoupon || data.coupon;
   if (rawCouponObj && typeof rawCouponObj === 'object' && Object.keys(rawCouponObj).length > 0) {
@@ -92,7 +92,7 @@ const parseCartResponse = (data: any) => {
       discountType: c.discountType || 'FLAT',
       discountAmount: c.discountAmount || 0,
     };
-    
+
     // Safely calculate discount directly incase backend cart object didn't compute it
     const apiComputedDiscount = data.discountAmount || data.discount || 0;
     if (apiComputedDiscount > 0) {
@@ -115,10 +115,10 @@ const parseCartResponse = (data: any) => {
 
   const tax = data.totalTax || data.taxAmount || 0;
   const deliveryFee = data.deliveryFee || data.deliveryCharge || data.shipping || 0;
-  
+
   // Prefer API's finalTotal, but fallback safely
   const finalPrice = data.finalTotal || data.finalAmount || data.totalPrice || Math.max(0, localItemsTotal + tax + deliveryFee - discountAmount);
-  
+
   // Ensure totalPrice uses our robust local items total
   const totalPrice = localItemsTotal;
 
@@ -134,11 +134,12 @@ const parseCartResponse = (data: any) => {
   };
 };
 
-export const useCartStore = create<CartState & { syncCount: number }>((set, get) => ({
+export const useCartStore = create<CartState & { syncCount: number; fetchVersion: number }>((set, get) => ({
   items: [],
   isOpen: false,
   isLoading: false,
   syncCount: 0,
+  fetchVersion: 0,
   totalPrice: 0,
   discountAmount: 0,
   finalPrice: 0,
@@ -150,9 +151,11 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
   toggleCart: () => set((s) => ({ isOpen: !s.isOpen })),
 
   fetchCart: async (coords) => {
+    const currentVersion = get().fetchVersion + 1;
+    set({ isLoading: true, fetchVersion: currentVersion });
+
     try {
-      set({ isLoading: true });
-      
+
       const cartRes = await cartApi.getCart();
       const cartData = cartRes.data;
 
@@ -176,20 +179,26 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
       };
 
       const parsed = parseCartResponse(mergedData);
-      
+
+      // Discard stale responses if a newer fetch is requested or a mutation occurred
+      if (get().fetchVersion !== currentVersion) {
+        set({ isLoading: false });
+        return;
+      }
+
       // If a mutation is actively in flight, discard this fetch to prevent flashing stale data
       // BUT we absolutely must recover the real database item IDs for any optimistic items!
       if (get().syncCount > 0) {
         set((s) => ({
           isLoading: false,
           items: s.items.map(oldItem => {
-             if (oldItem.itemId && oldItem.itemId.startsWith('temp_')) {
-                const realItem = parsed.items.find(pi => pi._id === oldItem._id);
-                if (realItem && realItem.itemId) {
-                   return { ...oldItem, itemId: realItem.itemId };
-                }
-             }
-             return oldItem;
+            if (oldItem.itemId && oldItem.itemId.startsWith('temp_')) {
+              const realItem = parsed.items.find(pi => pi._id === oldItem._id);
+              if (realItem && realItem.itemId) {
+                return { ...oldItem, itemId: realItem.itemId };
+              }
+            }
+            return oldItem;
           })
         }));
         return;
@@ -208,6 +217,7 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
     const newPrice = item.price;
     set((s) => ({
       syncCount: s.syncCount + 1,
+      fetchVersion: s.fetchVersion + 1,
       items: [...s.items, {
         ...item,
         itemId: optimisticId,
@@ -313,12 +323,13 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
     const prev = get().items;
     const itemToRemove = prev.find((i) => i.itemId === itemId);
     if (!itemToRemove || itemId.startsWith('temp_')) return;
-    
+
     const deduction = itemToRemove.price * itemToRemove.quantity;
-    
+
     // Instant optimistic removal + lock fetchCart
     set((s) => ({
       syncCount: s.syncCount + 1,
+      fetchVersion: s.fetchVersion + 1,
       items: s.items.filter((i) => i.itemId !== itemId),
       totalPrice: s.totalPrice - deduction,
       finalPrice: s.finalPrice - deduction,
@@ -340,7 +351,10 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
 
   clearCart: async () => {
     const prev = get();
+    // Instant optimistic empty + lock fetchCart
     set({
+      syncCount: prev.syncCount + 1,
+      fetchVersion: prev.fetchVersion + 1,
       items: [],
       totalPrice: 0,
       tax: 0,
@@ -353,13 +367,20 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
     try {
       await cartApi.clearCart();
     } catch {
+      // Rollback
       set({
         items: prev.items,
         totalPrice: prev.totalPrice,
         tax: prev.tax,
         finalPrice: prev.finalPrice,
         deliveryFee: prev.deliveryFee,
+        discountAmount: prev.discountAmount,
+        appliedCoupon: prev.appliedCoupon,
       });
+    } finally {
+      // Unlock and sync real state from server
+      set((s) => ({ syncCount: Math.max(0, s.syncCount - 1) }));
+      await get().fetchCart();
     }
   },
 
@@ -377,6 +398,6 @@ export const useCartStore = create<CartState & { syncCount: number }>((set, get)
       await cartApi.removeCoupon();
       set({ appliedCoupon: null, discountAmount: 0 });
       await get().fetchCart();
-    } catch {}
+    } catch { }
   },
 }));

@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
-  Dimensions, ActivityIndicator, Pressable, Platform 
+  Dimensions, ActivityIndicator, Pressable, Platform, TextInput, Alert
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   ArrowLeft, CheckCircle, Package, MapPin, CreditCard, 
   Clock, XCircle, ChevronRight, ShoppingBag, ChefHat, Bike, 
-  MessageCircle, Phone, RefreshCw
+  MessageCircle, Phone, RefreshCw, CloudRain
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
+import { Video, ResizeMode } from 'expo-av';
 import Animated, { 
   FadeInDown, FadeIn, withTiming, withRepeat, withSequence, 
   useAnimatedStyle, useSharedValue, Easing, SlideInDown, SlideOutDown,
@@ -19,6 +20,7 @@ import LottieView from 'lottie-react-native';
 import { orderApi, restaurantApi } from '../../services/api';
 import { socket } from '../../services/socket';
 import MapComponent from '../../components/MapComponent';
+import { useWeather } from '../../hooks/useWeather';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,8 +35,8 @@ const CANCEL_WINDOW_MS = 3 * 60 * 1000;
 
 // Recreating exactly the web STATUS_CONFIG
 const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string; desc: string; emoji: string; lottie?: any }> = {
-  PLACED: { label: "Order Placed", icon: ShoppingBag, color: "#2563EB", bg: "#3B82F6", desc: "Your order has been received", emoji: "🛒" },
-  ACCEPTED: { label: "Accepted", icon: CheckCircle, color: "#0891B2", bg: "#06B6D4", desc: "Restaurant accepted your order", emoji: "✅" },
+  PLACED: { label: "Order Placed", icon: ShoppingBag, color: "#16A34A", bg: "#22C55E", desc: "Your order has been received", emoji: "🛒", lottie: require('../../assets/lottie/OrderPlaced.json') },
+  ACCEPTED: { label: "Order Confirmed", icon: CheckCircle, color: "#0891B2", bg: "#06B6D4", desc: "Restaurant accepted your order", emoji: "✅", lottie: require('../../assets/lottie/Order-Confirmed.json') },
   PREPARING: { label: "Preparing", icon: ChefHat, color: "#EA580C", bg: "#F97316", desc: "Your food is being prepared", emoji: "👨‍🍳", lottie: require('../../assets/lottie/prepareing.json') },
   OUT_FOR_DELIVERY: { label: "Out for Delivery", icon: Bike, color: "#9333EA", bg: "#A855F7", desc: "Your order is on the way!", emoji: "🛵", lottie: require('../../assets/lottie/outfordelivery.json') },
   DELIVERED: { label: "Delivered", icon: CheckCircle, color: "#16A34A", bg: "#22C55E", desc: "Enjoy your meal!", emoji: "🎉", lottie: require('../../assets/lottie/orderdelivered.json') },
@@ -66,6 +68,7 @@ function OrderTrackingScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelRemaining, setCancelRemaining] = useState('');
   const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[]>([]);
 
   // Sockets
@@ -162,6 +165,9 @@ function OrderTrackingScreen() {
   const restaurantLng: number | undefined = restaurant?.location?.lng;
   const showMap = (!!restaurantLat && !!restaurantLng) && (!!userLat && !!userLng);
 
+  const { isRaining: dynamicIsRaining } = useWeather(restaurantLat || userLat, restaurantLng || userLng);
+  const isRaining = dynamicIsRaining;
+
   useEffect(() => {
     if (!showMap || !restaurantLat || !userLat || !restaurantLng || !userLng) return;
     const fetchRoute = async () => {
@@ -196,28 +202,44 @@ function OrderTrackingScreen() {
   }, [showMap, restaurantLat, restaurantLng, userLat, userLng]);
 
   const handleCancelClick = async () => {
-    if (!cancelReason.trim()) return;
+    if (!cancelReason.trim()) {
+      Alert.alert('Reason Required', 'Please provide a reason for cancellation.');
+      return;
+    }
     setCancelling(true);
     try {
-      await orderApi.cancelOrder(order._id);
+      await orderApi.cancelOrder(order._id, cancelReason.trim());
       setShowCancelModal(false);
+      setCancelReason('');
       fetchOrder(); 
-    } catch (e) {
-      console.log('Cancel failed', e);
+    } catch (e: any) {
+      Alert.alert('Cancel Failed', e.response?.data?.message || 'Could not cancel order. Please try again.');
     } finally {
       setCancelling(false);
     }
   };
 
+  // Countdown timer for cancel window (must be before early returns)
+  const canCancel = !loading && order && status === "PLACED" && (Date.now() - new Date(order.createdAt).getTime()) < CANCEL_WINDOW_MS;
+
+  useEffect(() => {
+    if (!canCancel || !order?.createdAt) { setCancelRemaining(''); return; }
+    const tick = () => {
+      const left = CANCEL_WINDOW_MS - (Date.now() - new Date(order.createdAt).getTime());
+      if (left <= 0) { setCancelRemaining(''); return; }
+      const m = Math.floor(left / 60000);
+      const s = Math.floor((left % 60000) / 1000);
+      setCancelRemaining(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [canCancel, order?.createdAt]);
+
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.replace('/(tabs)/orders')} style={styles.backButton}>
-            <ArrowLeft size={24} color={TEXT_COLOR} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView style={styles.scrollContent} scrollEnabled={false}>
+        <ScrollView style={[styles.scrollContent, { marginTop: Platform.OS === 'ios' ? 50 : 30 }]} scrollEnabled={false}>
           <SkeletonItem heightStyle={110} />
           <SkeletonItem heightStyle={320} />
           <SkeletonItem heightStyle={200} />
@@ -253,87 +275,104 @@ function OrderTrackingScreen() {
     ? [deliveryAddr.addressLine1 || deliveryAddr.houseNo, deliveryAddr.addressLine2 || deliveryAddr.street, deliveryAddr.city, deliveryAddr.postalCode || deliveryAddr.zip].filter(Boolean).join(", ")
     : (order.address || deliveryAddr || "Address not available");
 
-  const canCancel = status === "PLACED" && (Date.now() - new Date(order.createdAt).getTime()) < CANCEL_WINDOW_MS;
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right' }} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace('/(tabs)/orders')} style={styles.backButton}>
-          <ArrowLeft size={24} color={TEXT_COLOR} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitleMain}>Track Order</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        {/* ── Hero Status Banner ── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.heroBanner, { backgroundColor: cfg.bg, position: 'relative', overflow: 'hidden' }]}>
-          {/* Subtle Background Pattern or Lottie Blob effect */}
-          <View style={styles.heroGlowOverlay} />
+        {/* ── Hero Status + Map (Seamless) ── */}
+        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.heroMapWrap, { position: 'relative', overflow: 'hidden' }]}>
           
-          <View style={styles.heroContentRow}>
-            <View style={{ flex: 1, zIndex: 10 }}>
-              <View style={styles.heroTitleRow}>
-                {!cfg.lottie && (
-                  <Animated.Text style={[styles.heroEmoji, isActive && animatedPulseStyle]}>
-                    {cfg.emoji}
-                  </Animated.Text>
-                )}
-                <Text style={styles.heroTitle}>{cfg.label}</Text>
-              </View>
-              <Text style={styles.heroDesc}>{cfg.desc}</Text>
+          {/* Back Button over Hero/Map */}
+          <TouchableOpacity 
+            onPress={() => router.replace('/(tabs)/orders')} 
+            style={styles.floatingBack}
+          >
+            <ArrowLeft size={16} color="#FFFFFF" />
+          </TouchableOpacity>
 
-              {status === "PREPARING" && currentPrepTime > 0 && (
-                <View style={[styles.prepTimeBadge, { marginTop: 8 }]}>
-                  <Clock size={12} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text style={styles.prepTimeText}>Takes {currentPrepTime} mins</Text>
+          {/* Status Section */}
+          <View style={[styles.heroSection, { backgroundColor: isRaining ? '#1F2432' : cfg.bg }]}>
+            {/* BACKGROUND WRAPPER (Clips overflow for backgrounds only) */}
+            <View style={[StyleSheet.absoluteFillObject, { overflow: 'hidden' }]}>
+              {/* Dynamic Soft Clouds */}
+              {isRaining && (
+                <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+                  <CloudRain size={160} color="#FFFFFF" fill="#FFFFFF" opacity={0.15} style={{ position: 'absolute', top: -30, left: -20 }} />
+                  <CloudRain size={220} color="#FFFFFF" fill="#FFFFFF" opacity={0.12} style={{ position: 'absolute', top: -40, right: -50 }} />
+                  <CloudRain size={120} color="#FFFFFF" fill="#FFFFFF" opacity={0.08} style={{ position: 'absolute', top: 30, right: 100 }} />
                 </View>
               )}
 
-              <Text style={styles.heroMeta}>
-                #{order.customId || (order._id || '').slice(-6).toUpperCase()} · {date}
-              </Text>
-            </View>
-
-            {/* Dynamic Lottie / Icon Render on Right Side */}
-            <View style={styles.heroRightSide}>
-              {cfg.lottie ? (
-                <LottieView 
-                  source={cfg.lottie} 
-                  autoPlay 
-                  loop
-                  style={styles.heroLottie}
+              {/* Dynamic Weather Background Video */}
+              {isRaining && (
+                <Video
+                  source={require('../../assets/Video/ranin.mp4')}
+                  style={[StyleSheet.absoluteFillObject, { opacity: 0.55, zIndex: 0 }]}
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay
+                  isLooping
+                  isMuted
+                  pointerEvents="none"
                 />
-              ) : (
-                <View style={styles.heroIconBox}>
-                  <cfg.icon color="#FFFFFF" size={32} />
-                </View>
               )}
+              
+              <View style={styles.heroGlowOverlay} />
+            </View>
+            <View style={[styles.heroContentRow, { zIndex: 5 }]}>
+              <View style={{ flex: 1, zIndex: 10 }}>
+                <View style={styles.heroTitleRow}>
+                  {!cfg.lottie && (
+                    <Animated.Text style={[styles.heroEmoji, isActive && animatedPulseStyle]}>
+                      {cfg.emoji}
+                    </Animated.Text>
+                  )}
+                  <Text style={styles.heroTitle}>{cfg.label}</Text>
+                </View>
+                <Text style={styles.heroDesc}>{cfg.desc}</Text>
+
+                {status === "PREPARING" && currentPrepTime > 0 && (
+                  <View style={[styles.prepTimeBadge, { marginTop: 4 }]}>
+                    <Clock size={12} color="#FFFFFF" strokeWidth={2.5} />
+                    <Text style={styles.prepTimeText}>Arriving in ~{currentPrepTime} mins</Text>
+                  </View>
+                )}
+
+                {/* Rain Warning Alert */}
+                {isRaining && status !== "DELIVERED" && status !== "CANCELLED" && (
+                  <View style={[styles.prepTimeBadge, { marginTop: 4, backgroundColor: 'rgba(0,0,0,0.3)', borderColor: 'rgba(255,255,255,0.2)' }]}>
+                    <CloudRain size={12} color="#FFFFFF" strokeWidth={2.5} />
+                    <Text style={styles.prepTimeText}>Rain expected • Delivery may be delayed</Text>
+                  </View>
+                )}
+
+                <Text style={styles.heroMeta}>
+                  #{order.customId || (order._id || '').slice(-6).toUpperCase()} · {date}
+                </Text>
+              </View>
+
+              <View style={styles.heroRightSide}>
+                {cfg.lottie ? (
+                  <LottieView 
+                    source={cfg.lottie} 
+                    autoPlay 
+                    loop
+                    style={styles.heroLottie}
+                  />
+                ) : (
+                  <View style={styles.heroIconBox}>
+                    <cfg.icon color="#FFFFFF" size={32} />
+                  </View>
+                )}
+              </View>
             </View>
           </View>
-        </Animated.View>
 
-        {/* ── Live Tracker Map Card ── */}
-        {showMap && (
-          <Animated.View entering={FadeInDown.delay(150).springify()} style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-               <View style={styles.cardTitleWrap}>
-                  <MapPin size={16} color={PRIMARY} />
-                  <Text style={styles.cardTitle}>{isActive ? "Live Tracking" : "Delivery Route"}</Text>
-               </View>
-               {isActive && (
-                 <View style={styles.liveBadgeBox}>
-                   <Animated.View style={[styles.liveDot, animatedPulseStyle]} />
-                   <Text style={styles.liveBadgeText}>LIVE</Text>
-                 </View>
-               )}
-            </View>
-            
-            <View style={styles.mapPlaceholder}>
+          {/* Map Section (directly below, no gap) */}
+          {showMap && (
+            <View style={styles.mapSection}>
               {(restaurantLat && userLat) ? (
                 <View style={StyleSheet.absoluteFillObject}>
                   <MapComponent 
@@ -352,8 +391,8 @@ function OrderTrackingScreen() {
                 </View>
               )}
             </View>
-          </Animated.View>
-        )}
+          )}
+        </Animated.View>
 
         {/* ── Order Status Stepper ── */}
         <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.card}>
@@ -508,8 +547,7 @@ function OrderTrackingScreen() {
           )}
         </Animated.View>
 
-        {/* ── Cancel Button ── */}
-        {canCancel && (
+        {canCancel && cancelRemaining !== '' && (
           <Animated.View entering={FadeInDown.delay(350).springify()} style={{ paddingBottom: 40 }}>
             <TouchableOpacity 
               style={styles.cancelOuterBtn}
@@ -517,25 +555,44 @@ function OrderTrackingScreen() {
             >
               <XCircle size={18} color="#DC2626" />
               <Text style={styles.cancelOuterText}>Cancel Order</Text>
+              <View style={styles.cancelTimerBadge}>
+                <Clock size={12} color="#DC2626" />
+                <Text style={styles.cancelTimerText}>{cancelRemaining}</Text>
+              </View>
             </TouchableOpacity>
           </Animated.View>
         )}
       </ScrollView>
+
 
       {/* Cancel Modal */}
       {showCancelModal && (
         <Animated.View entering={FadeIn.duration(200)} style={styles.modalOverlay}>
           <Animated.View entering={SlideInDown.duration(300).springify()} style={styles.modalContent}>
              <Text style={styles.modalTitle}>Cancel Order?</Text>
-             <Text style={styles.modalSub}>Are you sure you want to cancel this order? Please state a reason.</Text>
+             <Text style={styles.modalSub}>Please tell us why you want to cancel this order. This helps us improve our service.</Text>
              
-             {/* Note: In React Native, TextInput is required, but we can fake it with simplified UX or avoid to focus error on modal. */}
+             <TextInput
+               style={styles.cancelReasonInput}
+               placeholder="Reason for cancellation..."
+               placeholderTextColor="#9CA3AF"
+               value={cancelReason}
+               onChangeText={setCancelReason}
+               multiline
+               numberOfLines={4}
+               textAlignVertical="top"
+               autoFocus
+             />
              
              <View style={styles.modalBtnRow}>
-                <TouchableOpacity style={styles.modalBtnKeep} onPress={() => setShowCancelModal(false)}>
+                <TouchableOpacity style={styles.modalBtnKeep} onPress={() => { setShowCancelModal(false); setCancelReason(''); }}>
                    <Text style={styles.modalBtnKeepText}>Keep Order</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={() => { setCancelReason('User Requested'); handleCancelClick(); }}>
+                <TouchableOpacity 
+                  style={[styles.modalBtnCancel, !cancelReason.trim() && { opacity: 0.5 }]} 
+                  onPress={handleCancelClick}
+                  disabled={cancelling || !cancelReason.trim()}
+                >
                    {cancelling ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.modalBtnCancelText}>Cancel</Text>}
                 </TouchableOpacity>
              </View>
@@ -548,49 +605,49 @@ function OrderTrackingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16,
-    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: BORDER,
-    zIndex: 10,
+  floatingBack: {
+    position: 'absolute', top: 16, left: 16, zIndex: 50,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center',
   },
-  backButton: { padding: 4 },
-  headerTitleMain: { fontFamily: 'Inter-Black', fontSize: 18, color: TEXT_COLOR },
   
-  scrollContent: { padding: 16, paddingBottom: 60 },
+  scrollContent: { paddingBottom: 60 },
   
   skeleton: { backgroundColor: '#F0F0F5', borderRadius: 16, marginBottom: 16 },
 
-  heroBanner: { borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
-  heroGlowOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFFFF', opacity: 0.1, alignSelf: 'flex-end', width: '150%', height: '150%', borderRadius: 300, top: -100, right: -100 },
+  // ── Seamless Hero + Map ──
+  heroMapWrap: { borderBottomLeftRadius: 24, borderBottomRightRadius: 24, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 6 },
+  heroSection: { paddingTop: Platform.OS === 'ios' ? 70 : 52, paddingBottom: 20, paddingHorizontal: 24, position: 'relative' },
+  heroGlowOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFFFF', opacity: 0.08, alignSelf: 'flex-end', width: '150%', height: '150%', borderRadius: 300, top: -100, right: -100 },
   heroContentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   heroEmoji: { fontSize: 28 },
-  heroTitle: { fontFamily: 'Inter-Black', fontSize: 24, color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.1)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 },
-  heroDesc: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#FFFFFF', opacity: 0.9, marginBottom: 12 },
-  prepTimeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.25)', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  heroTitle: { fontFamily: 'Inter-Black', fontSize: 22, color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.1)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 },
+  heroDesc: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#FFFFFF', opacity: 0.9, marginBottom: 8 },
+  prepTimeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.25)', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   prepTimeText: { fontFamily: 'Inter-Bold', fontSize: 12, color: '#FFFFFF' },
-  heroMeta: { fontFamily: 'Inter-SemiBold', fontSize: 11, color: '#FFFFFF', opacity: 0.75, letterSpacing: 0.5, marginTop: 4 },
+  heroMeta: { fontFamily: 'Inter-SemiBold', fontSize: 11, color: '#FFFFFF', opacity: 0.7, letterSpacing: 0.5, marginTop: 2 },
   
-  heroRightSide: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
-  heroIconBox: { width: 64, height: 64, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-10deg' }] },
-  heroLottie: { width: 140, height: 140, position: 'absolute', right: -20, top: -20 },
+  heroRightSide: { width: 90, height: 90, alignItems: 'center', justifyContent: 'center' },
+  heroIconBox: { width: 60, height: 60, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-10deg' }] },
+  heroLottie: { width: 130, height: 130, position: 'absolute', right: -15, top: -15 },
 
-  card: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6, elevation: 1 },
+  // ── Map (inside heroMapWrap, no gap) ──
+  mapSection: { height: 300, backgroundColor: '#F0F0F5', position: 'relative' },
+  liveOverlayBadge: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
+  liveBadgeText: { fontFamily: 'Inter-Bold', fontSize: 10, color: '#15803D' },
+  mapText: { fontFamily: 'Inter-SemiBold', fontSize: 12, color: MUTED, marginTop: 16 },
+
+  // ── Cards below map (unchanged) ──
+  card: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6, elevation: 1 },
   cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   cardTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardTitle: { fontFamily: 'Inter-Bold', fontSize: 13, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
   
   liveBadgeBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
-  liveBadgeText: { fontFamily: 'Inter-Bold', fontSize: 10, color: '#15803D' },
 
   mapPlaceholder: { height: 280, backgroundColor: '#F0F0F5', borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  mapOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E5E7EB', opacity: 0.5 },
-  liveLocationContainer: { alignItems: 'center', justifyContent: 'center' },
-  pingCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(34,197,94,0.3)', position: 'absolute' },
-  pinDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#16A34A', borderWidth: 3, borderColor: '#FFFFFF', elevation: 2 },
-  mapText: { fontFamily: 'Inter-SemiBold', fontSize: 12, color: MUTED, marginTop: 16 },
 
   restMarker: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EA580C', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FFFFFF', elevation: 4 },
   userMarker: { alignItems: 'center', justifyContent: 'center', width: 48, height: 48 },
@@ -645,11 +702,18 @@ const styles = StyleSheet.create({
 
   cancelOuterBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FEF2F2', paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: '#FECACA' },
   cancelOuterText: { fontFamily: 'Inter-Bold', fontSize: 14, color: '#DC2626' },
+  cancelTimerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  cancelTimerText: { fontFamily: 'Inter-Bold', fontSize: 12, color: '#DC2626', fontVariant: ['tabular-nums'] },
 
   modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, alignItems: 'center', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFFFFF', width: '100%', borderRadius: 24, padding: 24, elevation: 10 },
   modalTitle: { fontFamily: 'Inter-Black', fontSize: 20, color: TEXT_COLOR, marginBottom: 8 },
-  modalSub: { fontFamily: 'Inter-Medium', fontSize: 14, color: MUTED, marginBottom: 24, lineHeight: 20 },
+  modalSub: { fontFamily: 'Inter-Medium', fontSize: 14, color: MUTED, marginBottom: 16, lineHeight: 20 },
+  cancelReasonInput: {
+    fontFamily: 'Inter-Medium', fontSize: 14, color: TEXT_COLOR,
+    backgroundColor: BG, borderWidth: 1, borderColor: BORDER, borderRadius: 14,
+    padding: 14, minHeight: 100, marginBottom: 24,
+  },
   modalBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
   modalBtnKeep: { paddingHorizontal: 16, paddingVertical: 10 },
   modalBtnKeepText: { fontFamily: 'Inter-Bold', fontSize: 14, color: MUTED },

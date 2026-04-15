@@ -136,7 +136,7 @@ export default function VlogsScreen() {
 
         {/* Post Footer Information */}
         <View style={styles.postFooter}>
-          <Text style={styles.likesText}>{item.likes || 0} likes • {item.views || 0} views</Text>
+
           <Text style={styles.captionText}>
             <Text style={styles.captionAuthor}>{item.restaurantName || item.chefName || 'Foodie Chef'} </Text>
             {item.title || item.description || 'Delicious behind the scenes action! 👨‍🍳🔥'}

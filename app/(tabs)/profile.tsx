@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, Alert, Pressable, StatusBar,
+  Platform, Alert, Pressable, StatusBar, Linking
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -13,7 +13,7 @@ import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { resolveImageURL } from '../../lib/image-utils';
 import { useAuthStore } from '../../store/useAuthStore';
-import { userApi } from '../../services/api';
+import { userApi, restaurantApi } from '../../services/api';
 
 const PRIMARY = '#FC8019';
 const PRIMARY_LIGHT = '#FFF7ED';
@@ -32,6 +32,7 @@ export default function ProfileScreen() {
   const isLoggedIn = !!token && !!user;
 
   const [freshImage, setFreshImage] = useState<string | null>(null);
+  const [restaurant, setRestaurant] = useState<any>(null);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -45,6 +46,12 @@ export default function ProfileScreen() {
         .catch(err => console.log('Error fetching fresh profile:', err));
     }
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    restaurantApi.get().then(res => {
+      setRestaurant(res.data?.restaurant || res.data);
+    }).catch(e => console.log('Err fetching restaurant in profile', e));
+  }, []);
 
   const displayImage = freshImage || user?.profileImage;
 
@@ -151,16 +158,16 @@ export default function ProfileScreen() {
                   <Text style={styles.profileDetailText}>{user.mobile}</Text>
                 </View>
               )}
+              <TouchableOpacity
+                style={styles.editProfileBtn}
+                activeOpacity={0.7}
+                onPress={() => router.push('/edit-profile')}
+              >
+                <Pencil size={12} color={PRIMARY} />
+                <Text style={styles.editProfileText}>Edit Profile</Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.editProfileBtn}
-            activeOpacity={0.85}
-            onPress={() => router.push('/edit-profile')}
-          >
-            <Pencil size={16} color="#FFF" />
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
         </Animated.View>
 
         {/* ─── My Account ─── */}
@@ -191,6 +198,58 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <MenuItem idx={9} icon={<LogOut size={20} color="#EF4444" />} label="Logout" sub="Sign out of your account" onPress={handleLogout} />
         </View>
+
+        {/* ─── Restaurant / Outlet Info ─── */}
+        {restaurant && (
+          <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.restaurantCardWrap}>
+            <View style={styles.resCardTop}>
+              <Text style={styles.resName}>{restaurant.name || 'Haldia Cloud Kitchen'}</Text>
+              <Text style={styles.resAddress}>{restaurant.address || 'Haldia, West Bengal'}</Text>
+            </View>
+            <View style={styles.resCardBottom}>
+              <TouchableOpacity 
+                style={styles.resBtn} 
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (restaurant.mobile) {
+                    Linking.openURL(`tel:${restaurant.mobile}`);
+                  } else {
+                    Alert.alert('Not available', 'Outlet contact number not provided yet.');
+                  }
+                }}
+              >
+                <Phone size={14} color="#991B1B" />
+                <Text style={styles.resBtnText}>Call Outlet</Text>
+              </TouchableOpacity>
+              <View style={styles.resDivider} />
+              <TouchableOpacity 
+                style={styles.resBtn}
+                activeOpacity={0.7}
+                onPress={() => {
+                  const lat = restaurant.location?.lat;
+                  const lng = restaurant.location?.lng;
+                  if (lat && lng) {
+                    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
+                  } else {
+                    Alert.alert('Not available', 'Outlet location not provided yet.');
+                  }
+                }}
+              >
+                <Text style={styles.resBtnText}>Get Directions</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* ─── Powered By ULMiND ─── */}
+        <TouchableOpacity 
+          style={styles.poweredByContainer}
+          activeOpacity={0.7}
+          onPress={() => Linking.openURL('https://www.ulmind.com')}
+        >
+           <Text style={styles.poweredByText}>Powered by</Text>
+           <Image source={require('../../assets/logo/ulmind-logo.png')} style={styles.ulmindLogo} contentFit="contain" />
+        </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -261,13 +320,10 @@ const styles = StyleSheet.create({
   profileDetailText: { fontFamily: 'Inter-Medium', fontSize: 13, color: TEXT_MUTED },
 
   editProfileBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    marginTop: 20, paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: PRIMARY,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    marginTop: 8, alignSelf: 'flex-start',
   },
-  editProfileText: { fontFamily: 'Inter-Black', fontSize: 15, color: '#FFFFFF' },
+  editProfileText: { fontFamily: 'Inter-SemiBold', fontSize: 12, color: PRIMARY },
 
   // ── Sections ──
   section: { paddingHorizontal: 16, marginTop: 16 },
@@ -289,4 +345,73 @@ const styles = StyleSheet.create({
   },
   menuLabel: { fontFamily: 'Inter-SemiBold', fontSize: 15, color: TEXT_DARK },
   menuSub: { fontFamily: 'Inter-Medium', fontSize: 12, color: TEXT_MUTED, marginTop: 2 },
+
+  // ── Powered By ──
+  poweredByContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+    gap: 6,
+  },
+  poweredByText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    color: '#4B5563', // slightly darker text since opacity is removed
+  },
+  ulmindLogo: {
+    width: 80,
+    height: 24,
+  },
+
+  // ── Restaurant Card ──
+  restaurantCardWrap: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    backgroundColor: CARD,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+  },
+  resCardTop: {
+    padding: 16,
+  },
+  resName: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  resAddress: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+  },
+  resCardBottom: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF2F2', // Light reddish background matching design
+    paddingVertical: 12,
+  },
+  resBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  resBtnText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: '#991B1B', // Dark red color
+  },
+  resDivider: {
+    width: 1.5,
+    backgroundColor: '#FCA5A5', // Light reddish divider
+    height: '60%',
+    alignSelf: 'center',
+  },
 });

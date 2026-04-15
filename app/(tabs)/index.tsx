@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,17 @@ import {
   Pressable,
   Platform,
   TextInput,
+  Modal,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { Video } from 'expo-av';
-import { Search, MapPin, ChevronDown, Bell, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift, Heart, User } from 'lucide-react-native';
+import { Video, ResizeMode } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Search, MapPin, ChevronDown, Bell, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift, Heart, User, Mic, Mic2, Cloud } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedScrollHandler,
   withTiming,
   withDelay,
   withSpring,
@@ -29,7 +32,9 @@ import Animated, {
   FadeInDown,
   FadeInRight,
   FadeIn,
+  FadeOut,
   SlideInRight,
+  ZoomIn,
 } from 'react-native-reanimated';
 import LottieView from 'lottie-react-native';
 import { menuApi, restaurantApi, couponApi, userApi } from '../../services/api';
@@ -40,6 +45,8 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useLocationStore } from '../../store/useLocationStore';
 import { resolveImageURL } from '../../lib/image-utils';
+import { TabScrollContext } from './_layout';
+import { useWeather } from '../../hooks/useWeather';
 
 const { width } = Dimensions.get('window');
 const PRIMARY = '#FC8019';
@@ -236,8 +243,9 @@ function HeroBannerSection() {
                     <Video
                       source={{ uri: item.url }}
                       style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', borderRadius: 20 }}
-                      resizeMode={"cover"}
+                      resizeMode={"cover" as any}
                       shouldPlay={activeIdx === index}
+                      positionMillis={activeIdx === index ? undefined : 0}
                       isLooping={carouselItems.length === 1}
                       isMuted={true}
                       onPlaybackStatusUpdate={(status: any) => {
@@ -424,6 +432,28 @@ export default function HomeScreen() {
   const cartItems = useCartStore((s) => s.items);
   const { selectedAddress } = useLocationStore();
 
+  const isTabBarHidden = useContext(TabScrollContext);
+  const lastScrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      if (!isTabBarHidden) return;
+      const currentY = event.contentOffset.y;
+      
+      if (currentY <= 0) {
+        if (isTabBarHidden.value !== 0) isTabBarHidden.value = 0;
+      } else {
+        const delta = currentY - lastScrollY.value;
+        if (delta > 5 && currentY > 60) {
+          if (isTabBarHidden.value !== 1) isTabBarHidden.value = 1;
+        } else if (delta < -10) { 
+          if (isTabBarHidden.value !== 0) isTabBarHidden.value = 0;
+        }
+      }
+      lastScrollY.value = currentY;
+    }
+  });
+
   const locationLabel = selectedAddress
     ? selectedAddress.type === "HOME"
       ? "Home"
@@ -431,6 +461,11 @@ export default function HomeScreen() {
         ? "Work"
         : selectedAddress.addressLine1?.split(",")[0]?.trim() || "My Location"
     : userName ? `Hi, ${userName.split(' ')[0]}!` : 'Deliver to';
+
+  const userLat: number | undefined = selectedAddress?.lat || selectedAddress?.coordinates?.[1] || selectedAddress?.latitude;
+  const userLng: number | undefined = selectedAddress?.lng || selectedAddress?.coordinates?.[0] || selectedAddress?.longitude;
+  const { isRaining: dynamicIsRaining } = useWeather(userLat, userLng);
+  const isRaining = dynamicIsRaining;
 
   const locationSub = selectedAddress
     ? [selectedAddress.city, selectedAddress.state].filter(Boolean).join(", ")
@@ -445,6 +480,8 @@ export default function HomeScreen() {
   const [fssaiLicense, setFssaiLicense] = useState<string | null>(null);
   const [freshImage, setFreshImage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [showVegSplash, setShowVegSplash] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
 
   // Search placeholder animation
@@ -493,16 +530,79 @@ export default function HomeScreen() {
     fetchHomeData();
   }, []);
 
+  const handleVoiceSearch = () => {
+    if (Platform.OS === 'web') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setIsListening(true);
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+          let transcript = event.results[0][0].transcript;
+          // Clean up transcript if ending with a period
+          if (transcript.endsWith('.')) {
+            transcript = transcript.slice(0, -1);
+          }
+          setSearchQuery(transcript);
+          setIsListening(false);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('Speech recognition error', event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        try {
+          recognition.start();
+        } catch (e) {
+          setIsListening(false);
+        }
+      } else {
+        alert('Real-time Voice Search requires Chrome or Edge on Web. Try entering manually!');
+      }
+    } else {
+      // Mobile: Native keyboard integration fallback
+      alert('Native App Voice Search utilizes your Phone Keyboard Dictation Mic. Please use your keyboard Mic for dynamic speech!');
+      searchInputRef.current?.focus();
+    }
+  };
+
+  const handleVegToggle = () => {
+    const nextState = !isVegOnly;
+    setIsVegOnly(nextState);
+    setShowVegSplash(true);
+    setTimeout(() => {
+      setShowVegSplash(false);
+    }, 1300);
+  };
+
   const getFilteredProducts = () => {
     let result = products;
-    // Search filter
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
+      const exactQ = searchQuery.trim().toLowerCase();
+      const queryWords = exactQ.split(/\s+/).filter(w => w.length > 2 || w === 'egg' || w === 'non');
+      
       result = result.filter((p: any) => {
         const name = (p.name || '').toLowerCase();
         const desc = (p.description || '').toLowerCase();
         const catName = (typeof p.category === 'object' ? p.category?.name || '' : '').toLowerCase();
-        return name.includes(q) || desc.includes(q) || catName.includes(q);
+        
+        // Full exact match
+        if (name.includes(exactQ) || desc.includes(exactQ) || catName.includes(exactQ)) return true;
+        
+        // Partial word match (e.g. "mutton biryani" matches "Mutton Dum Biryani")
+        if (queryWords.length > 1) {
+          return queryWords.some(w => name.includes(w) || catName.includes(w) || desc.includes(w));
+        }
+        
+        return false;
       });
     }
     if (selectedCategory) {
@@ -525,26 +625,64 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ─── HEADER ─── */}
-      <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
+      {/* ─── WEATHER THEME WRAPPER (Spans Header & Search) ─── */}
+      <Animated.View entering={FadeIn.duration(400)} style={isRaining && { backgroundColor: '#1F2432', paddingBottom: 0 }}>
+        {/* Dynamic Soft Clouds */}
+        {isRaining && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <Cloud size={140} color="#FFFFFF" fill="#FFFFFF" opacity={0.25} style={{ position: 'absolute', top: -30, left: -20 }} />
+            <Cloud size={200} color="#FFFFFF" fill="#FFFFFF" opacity={0.2} style={{ position: 'absolute', top: -50, right: -40 }} />
+            <Cloud size={100} color="#FFFFFF" fill="#FFFFFF" opacity={0.15} style={{ position: 'absolute', top: 20, right: 90 }} />
+          </View>
+        )}
+        
+        {/* Dynamic Weather Background Video */}
+        {isRaining && (
+          <Video
+            source={require('../../assets/Video/ranin.mp4')}
+            style={[StyleSheet.absoluteFillObject, { opacity: 0.60, zIndex: 0 }]}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay
+            isLooping
+            isMuted
+            pointerEvents="none"
+          />
+        )}
+
+        {/* Seamless Bottom Gradient for Weather Theme */}
+        {isRaining && (
+          <LinearGradient
+            colors={['transparent', '#FFFCF7']}
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 45, zIndex: 1 }}
+            pointerEvents="none"
+          />
+        )}
+
+        {/* ─── HEADER CONTENT ─── */}
+        <View style={[styles.header, isRaining && { backgroundColor: 'transparent', borderBottomWidth: 0, borderBottomColor: 'transparent' }]}>
+        
         <TouchableOpacity style={styles.headerLeft} activeOpacity={0.7} onPress={() => router.push('/location-picker')}>
-          <View style={styles.locationRow}>
-            <MapPin size={18} color={PRIMARY} fill={PRIMARY} />
-            <Text style={styles.headerLocationTitle}>
+          <View style={[styles.locationRow, { zIndex: 5 }]}>
+            <Image 
+               source={require('../../assets/icons/locationICON.png')} 
+               style={{ width: 22, height: 22, tintColor: isRaining ? "#FFFFFF" : PRIMARY }} 
+               contentFit="contain" 
+            />
+            <Text style={[styles.headerLocationTitle, isRaining && { color: '#FFFFFF', fontSize: 19 }]}>
               {locationLabel}
             </Text>
-            <ChevronDown size={16} color="#3D4152" />
+            <ChevronDown size={18} color={isRaining ? "#FFFFFF" : "#3D4152"} />
           </View>
-          <Text style={styles.headerLocationSub} numberOfLines={1}>
+          <Text style={[styles.headerLocationSub, { zIndex: 5 }, isRaining && { color: 'rgba(255,255,255,0.75)' }]} numberOfLines={1}>
             {locationSub}
           </Text>
         </TouchableOpacity>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerIconBtn}>
-            <Bell size={20} color="#3D4152" />
-            <View style={styles.notifDot} />
+        <View style={[styles.headerRight, { zIndex: 5 }]}>
+          <TouchableOpacity style={[styles.headerIconBtn, isRaining && { backgroundColor: 'transparent' }]}>
+            <Bell size={22} color={isRaining ? "rgba(255,255,255,0.9)" : "#3D4152"} />
+            <View style={[styles.notifDot, isRaining && { borderColor: 'transparent', right: 5, top: 4 }]} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.avatarCircle} onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.7}>
+          <TouchableOpacity style={[styles.avatarCircle, isRaining && { borderWidth: 0 }]} onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.7}>
             {freshImage || userImage ? (
               <Image source={{ uri: resolveImageURL(freshImage || userImage) }} style={styles.headerAvatarImg} contentFit="cover" />
             ) : (
@@ -552,105 +690,99 @@ export default function HomeScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </Animated.View>
+        </View>
 
-      {/* ─── STICKY SEARCH BAR ─── */}
-      <View style={styles.stickySearchWrap}>
-        <View style={styles.searchBar}>
-          <Search size={20} color="#9CA3AF" />
-          <TextInput
-            ref={searchInputRef}
-            style={styles.searchInput}
-            placeholder={`Search "${placeholders[placeholderIndex]}"`}
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => { setSearchQuery(''); searchInputRef.current?.blur(); }} style={styles.searchClearBtn}>
-              <Text style={styles.searchClearText}>✕</Text>
-            </TouchableOpacity>
-          )}
+        {/* ─── STICKY SEARCH BAR (Zomato Style) ─── */}
+        <View style={[styles.stickySearchWrap, isRaining && { backgroundColor: 'transparent', borderBottomColor: 'transparent', zIndex: 5 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={[styles.searchBar, { flex: 1 }]}>
+            <Search size={20} color="#9CA3AF" />
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder={`Search "${placeholders[placeholderIndex]}"`}
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCorrect={Platform.OS === 'ios' ? true : false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => { setSearchQuery(''); searchInputRef.current?.blur(); }} style={styles.searchClearBtn}>
+                <Text style={styles.searchClearText}>✕</Text>
+              </TouchableOpacity>
+            )}
+            {!searchQuery.length && (
+              <>
+                <View style={{ width: 1, height: 20, backgroundColor: '#EBEBEB', marginHorizontal: 4 }} />
+                <TouchableOpacity onPress={handleVoiceSearch} style={{ padding: 4 }}>
+                  <Mic size={20} color={PRIMARY} />
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+
+          {/* Pure Veg Toggle */}
+          <Pressable 
+            style={[styles.vegToggleBtn, isVegOnly && styles.vegToggleBtnActive]}
+            onPress={handleVegToggle}
+          >
+            <View style={[styles.vegToggleDot, isVegOnly && styles.vegToggleDotActive]} />
+            <Text style={[styles.vegToggleText, isVegOnly && styles.vegToggleTextActive]}>Veg</Text>
+          </Pressable>
         </View>
       </View>
+      </Animated.View>
 
-      <ScrollView
+      <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY]} />
         }
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        stickyHeaderIndices={[2]}
       >
+        {loading ? <HomeSkeletonLoader /> : null}
 
-        {loading ? (
-          <HomeSkeletonLoader />
-        ) : (
-          <>
-            {/* ─── UNIFIED HERO SECTION (Videos & Coupons) ─── */}
-            <HeroBannerSection />
+        {!loading ? <HeroBannerSection /> : null}
 
-            {/* ─── VEG / NON-VEG FILTER ─── */}
-            <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.filterRow}>
-              <Pressable
-                style={[styles.filterPill, !isVegOnly && styles.filterPillActive]}
-                onPress={() => setIsVegOnly(false)}
-              >
-                <Text style={[styles.filterPillText, !isVegOnly && styles.filterPillTextActive]}>All</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.filterPill, styles.filterPillVeg, isVegOnly && styles.filterPillVegActive]}
-                onPress={() => setIsVegOnly(true)}
-              >
-                <View style={styles.vegDot} />
-                <Text style={[styles.filterPillText, isVegOnly && { color: '#16a34a', fontFamily: 'Inter-Bold' }]}>
-                  Pure Veg
-                </Text>
-              </Pressable>
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity style={styles.filterIconBtn}>
-                <SlidersHorizontal size={18} color="#6B7280" />
-              </TouchableOpacity>
-            </Animated.View>
-
-            {/* ─── CATEGORY CAROUSEL ─── */}
+        {!loading ? (
+          <View style={{ backgroundColor: '#FFFFFF', paddingTop: 16, paddingBottom: 8, zIndex: 10, elevation: 10 }}>
             <Animated.View entering={FadeInDown.delay(250).duration(400)}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionBullet} />
-                <Text style={styles.sectionTitle}>What's on your mind?</Text>
-              </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.catRow}
               >
-                {/* "All" category */}
+              {/* "All" category */}
+              <CategoryItem
+                item={{ _id: '', name: 'All', image: null }}
+                isSelected={selectedCategory === ''}
+                onSelect={() => setSelectedCategory('')}
+                index={0}
+              />
+              {categories.map((cat, idx) => (
                 <CategoryItem
-                  item={{ _id: '', name: 'All', image: null }}
-                  isSelected={selectedCategory === ''}
-                  onSelect={() => setSelectedCategory('')}
-                  index={0}
+                  key={cat._id}
+                  item={cat}
+                  isSelected={selectedCategory === cat._id}
+                  onSelect={handleCategorySelect}
+                  index={idx + 1}
                 />
-                {categories.map((cat, idx) => (
-                  <CategoryItem
-                    key={cat._id}
-                    item={cat}
-                    isSelected={selectedCategory === cat._id}
-                    onSelect={handleCategorySelect}
-                    index={idx + 1}
-                  />
-                ))}
-              </ScrollView>
-            </Animated.View>
+              ))}
+            </ScrollView>
+          </Animated.View>
+        </View>
+        ) : null}
 
-            {/* ─── DIVIDER ─── */}
-            <View style={styles.divider} />
+        {!loading ? <View style={styles.divider} /> : null}
 
-            {/* ─── PRODUCTS ─── */}
-            <View style={styles.productsSection}>
-              <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+        {!loading ? (
+          <View style={styles.productsSection}>
+            <Animated.View entering={FadeInDown.delay(300).duration(400)}>
                 <Text style={styles.sectionTitle}>
                   {selectedCategory
                     ? categories.find((c: any) => c._id === selectedCategory)?.name || 'Menu'
@@ -682,9 +814,11 @@ export default function HomeScreen() {
                 )}
               </View>
             </View>
+        ) : null}
 
-            {/* ─── CREATOR FOOTER ─── */}
-            <View style={styles.footerSection}>
+        {/* ─── CREATOR FOOTER ─── */}
+        {!loading ? (
+          <View style={styles.footerSection}>
               <View style={styles.footerInner}>
                 <Text style={styles.liveText}>Live</Text>
                 <Text style={styles.itUpText}>it up!</Text>
@@ -710,9 +844,8 @@ export default function HomeScreen() {
                 ) : null}
               </View>
             </View>
-          </>
-        )}
-      </ScrollView>
+        ) : null}
+      </Animated.ScrollView>
 
       {/* Floating Cart Bar */}
       <FloatingCartBar />
@@ -722,6 +855,65 @@ export default function HomeScreen() {
         item={selectedProduct}
         onClose={() => setSelectedProduct(null)}
       />
+
+      {/* ─── VOICE SEARCH OVERLAY ─── */}
+      {isListening && (
+        <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)} style={styles.voiceOverlay}>
+          <View style={styles.voiceModal}>
+            <Animated.View entering={ZoomIn.springify().damping(12).delay(100)} style={styles.voiceMicCircle}>
+              <Mic2 size={40} color="#FFFFFF" />
+            </Animated.View>
+            <Text style={styles.voiceText}>Listening...</Text>
+            <Text style={styles.voiceSubtext}>Try saying "Biryani" or "Pizza"</Text>
+            
+            <TouchableOpacity onPress={() => setIsListening(false)} style={styles.voiceCancelBtn}>
+              <Text style={styles.voiceCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* ─── OP VEG MODE SPLASH ─── */}
+      <Modal visible={showVegSplash} transparent animationType="fade">
+        <Animated.View 
+          style={[styles.vegSplashContainer, { backgroundColor: isVegOnly ? '#16A34A' : '#8B1118' }]}
+        >
+          {/* FLOATING OP ICONS */}
+          {Array.from({ length: 12 }).map((_, i) => (
+            <Animated.Text
+              key={`float-${i}`}
+              entering={FadeInDown.delay(i * 60).springify().damping(12)}
+              style={{
+                position: 'absolute',
+                fontSize: Math.random() * 20 + 34,
+                opacity: 0.15,
+                left: `${Math.random() * 90}%`,
+                top: `${Math.random() * 80 + 10}%`,
+                transform: [{ rotate: `${Math.random() * 360}deg` }]
+              }}
+            >
+              {isVegOnly 
+                ? (['🍃', '🌿', '🥗', '🥦', '🥑'][i % 5]) 
+                : (['🍗', '🥩', '🍔', '🍕', '🍳'][i % 5])
+              }
+            </Animated.Text>
+          ))}
+
+          <Animated.View entering={FadeInDown.delay(100).springify().damping(14)} style={styles.vegSplashTextWrap}>
+            <Text style={[styles.vegSplashTextTitle, { color: '#FFFFFF' }]}>{isVegOnly ? "VEG" : "REGULAR"}</Text>
+            <Text style={[styles.vegSplashTextTitle, { color: '#FFFFFF' }]}>MODE</Text>
+          </Animated.View>
+
+          <Animated.View entering={ZoomIn.delay(300).springify().damping(14)} style={[styles.vegSplashHugeToggle, { backgroundColor: isVegOnly ? '#14532D' : '#450A0A' }]}>
+            <Animated.View 
+               style={[
+                 styles.vegSplashHugeKnob, 
+                 isVegOnly ? { alignSelf: 'flex-end', backgroundColor: '#FFFFFF' } : { alignSelf: 'flex-start', backgroundColor: '#D1D5DB' }
+               ]} 
+            />
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </View>
   );
 }
@@ -767,15 +959,15 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 0 },
   // Search (Sticky)
   stickySearchWrap: {
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
+    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1, borderBottomColor: '#F3F3F3',
   },
   searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#F7F7F7', borderRadius: 14,
-    paddingHorizontal: 16, height: 46,
-    borderWidth: 1, borderColor: '#EBEBEB',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F3F4F6', borderRadius: 14,
+    paddingHorizontal: 14, height: 48,
+    borderWidth: 1, borderColor: '#E5E7EB',
   },
   searchInput: {
     flex: 1, fontFamily: 'Inter-Medium', fontSize: 15, color: '#1A1A1A',
@@ -987,4 +1179,96 @@ const styles = StyleSheet.create({
   ticketValidText: { fontFamily: 'Inter-Bold', fontSize: 10, color: 'rgba(255,255,255,0.7)', letterSpacing: 1, textTransform: 'uppercase' },
   ticketNotchLeft: { position: 'absolute', top: '50%', left: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: '#F8F9FA' },
   ticketNotchRight: { position: 'absolute', top: '50%', right: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: '#F8F9FA' },
+
+  // Veg Toggle Zomato Style
+  vegToggleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  vegToggleBtnActive: {
+    borderColor: '#22C55E', backgroundColor: '#F0FDF4',
+  },
+  vegToggleDot: {
+    width: 10, height: 10, borderRadius: 2, borderWidth: 1, borderColor: '#9CA3AF',
+    backgroundColor: '#FFFFFF',
+  },
+  vegToggleDotActive: {
+    borderColor: '#22C55E', backgroundColor: '#22C55E', borderRadius: 5,
+  },
+  vegToggleText: {
+    fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#6B7280',
+  },
+  vegToggleTextActive: {
+    color: '#16A34A',
+  },
+
+  // Voice Search Overlay
+  voiceOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+    zIndex: 9999,
+  },
+  voiceModal: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 30, alignItems: 'center',
+    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
+  },
+  voiceMicCircle: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: PRIMARY,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8,
+  },
+  voiceText: {
+    fontFamily: 'Inter-Bold', fontSize: 24, color: '#1A1A1A', marginBottom: 8,
+  },
+  voiceSubtext: {
+    fontFamily: 'Inter-Medium', fontSize: 15, color: '#6B7280', marginBottom: 30,
+  },
+  voiceCancelBtn: {
+    paddingVertical: 12, paddingHorizontal: 30,
+    borderRadius: 24, backgroundColor: '#F3F4F6',
+  },
+  voiceCancelText: {
+    fontFamily: 'Inter-SemiBold', fontSize: 15, color: '#4B5563',
+  },
+
+  // OP Veg Splash
+  vegSplashContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vegSplashTextWrap: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  vegSplashTextTitle: {
+    fontFamily: 'Inter-Black',
+    fontSize: 56,
+    color: '#FFFFFF',
+    lineHeight: 58,
+    letterSpacing: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
+  },
+  vegSplashHugeToggle: {
+    width: 140,
+    height: 70,
+    borderRadius: 35,
+    padding: 6,
+    justifyContent: 'center',
+  },
+  vegSplashHugeKnob: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4,
+  },
 });
