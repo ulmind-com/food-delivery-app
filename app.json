@@ -19,7 +19,13 @@
         "NSLocationWhenInUseUsageDescription": "We need your location to find nearby delivery options.",
         "NSCameraUsageDescription": "Upload profile pictures and chat images.",
         "NSSpeechRecognitionUsageDescription": "Use your voice to cleanly search for delicious food items without typing instantly.",
-        "NSMicrophoneUsageDescription": "Required to pick up your voice for hands-free dynamic product searching."
+        "NSMicrophoneUsageDescription": "Required to pick up your voice for hands-free dynamic product searching.",
+        "LSApplicationQueriesSchemes": [
+          "tez",
+          "phonepe",
+          "paytmmp",
+          "bhim"
+        ]
       }
     },
     "android": {
