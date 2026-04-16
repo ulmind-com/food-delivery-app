@@ -52,6 +52,7 @@
       "expo-secure-store",
       "expo-location",
       "expo-speech-recognition",
+      "./plugins/withUPIQueries",
       [
         "expo-notifications",
         {
