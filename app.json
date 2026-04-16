@@ -59,6 +59,7 @@
       "expo-location",
       "expo-speech-recognition",
       "./plugins/withUPIQueries",
+      "./plugins/withAndroidResolvedDependencies",
       [
         "expo-notifications",
         {
