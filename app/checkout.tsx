@@ -14,7 +14,8 @@ import Animated, { FadeInDown, FadeInUp, FadeIn, SlideInUp } from 'react-native-
 import { useCartStore } from '../store/useCartStore';
 import { useLocationStore } from '../store/useLocationStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { orderApi, restaurantApi, cartApi } from '../services/api';
+import { orderApi, restaurantApi, cartApi, paymentApi } from '../services/api';
+import RazorpayCheckout from 'react-native-razorpay';
 import { TicketCoupon } from '../components/TicketCoupon';
 
 const { width } = Dimensions.get('window');
@@ -119,12 +120,6 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (paymentMethod === 'ONLINE') {
-      Alert.alert('Coming Soon', 'Online payment via Razorpay is coming soon! Please use Cash on Delivery for now.');
-      setPaymentMethod('COD');
-      return;
-    }
-
     try {
       setIsPlacing(true);
 
@@ -136,6 +131,13 @@ export default function CheckoutScreen() {
       }));
 
       const combinedInstruction = `${deliveryInstruction}${noCutlery ? " | Don't send cutlery 🍴❌" : ""}`.trim();
+      const addressText = [
+        selectedAddress.addressLine1,
+        selectedAddress.addressLine2,
+        selectedAddress.city,
+        selectedAddress.state,
+        selectedAddress.postalCode,
+      ].filter(Boolean).join(', ');
 
       const payload = {
         items: orderItems,
@@ -143,31 +145,64 @@ export default function CheckoutScreen() {
         discountApplied: discountAmount,
         finalAmount: finalPrice,
         deliveryAddress: selectedAddress._id || (selectedAddress as any).id,
-        address: [
-          selectedAddress.addressLine1,
-          selectedAddress.addressLine2,
-          selectedAddress.city,
-          selectedAddress.state,
-          selectedAddress.postalCode,
-        ].filter(Boolean).join(', '),
+        address: addressText,
         deliveryInstruction: combinedInstruction || undefined,
         deliveryCoordinates: selectedAddress.coordinates || undefined,
         deliveryFee,
-        paymentMethod: 'COD',
+        paymentMethod: paymentMethod, // Now dynamically COD or ONLINE
       };
 
-      const res = await orderApi.placeOrder(payload);
-      const orderId = res.data?.order?._id || res.data?._id;
-      
-      // Navigate to success screen first
-      router.replace(`/order-success?orderId=${orderId}`);
+      if (paymentMethod === 'ONLINE') {
+        // Step 1: Create Razorpay Order securely from backend by passing full order validation details
+        const payRes = await paymentApi.createOrder({
+          amount: Math.round(finalPrice),
+          items: orderItems,
+          deliveryAddress: selectedAddress._id || (selectedAddress as any).id,
+          deliveryFee,
+        });
+        const razorpayOrderId = payRes.data.razorpayOrderId || payRes.data.id || payRes.data.orderId;
+        const amountInPaise = Math.round(finalPrice * 100);
 
-      // Clear the cart slightly after navigation to prevent empty cart flash UI
-      setTimeout(() => {
-        clearCart();
-      }, 500);
+        // Step 2: Open Native Razorpay Overlay
+        const options = {
+          key: 'rzp_test_SGtvYHFtIRGg0G',  // Zomato-tier TEST KEY 
+          amount: amountInPaise,
+          currency: 'INR',
+          name: 'Foodie Express',
+          description: 'Food Order Payment',
+          order_id: razorpayOrderId,
+          prefill: { name: user?.name, email: user?.email },
+          theme: { color: '#FC8019' },
+        };
+
+        const paymentData = await RazorpayCheckout.open(options);
+
+        // Step 3: Complete with online validation details
+        const res = await orderApi.placeOrder({
+          ...payload,
+          razorpayOrderId: paymentData.razorpay_order_id,
+          razorpayPaymentId: paymentData.razorpay_payment_id,
+          razorpaySignature: paymentData.razorpay_signature,
+        });
+
+        const orderId = res.data?.order?._id || res.data?._id;
+        router.replace(`/order-success?orderId=${orderId}`);
+        setTimeout(() => clearCart(), 500);
+
+      } else {
+        // Cash On Delivery handling
+        const res = await orderApi.placeOrder(payload);
+        const orderId = res.data?.order?._id || res.data?._id;
+        router.replace(`/order-success?orderId=${orderId}`);
+        setTimeout(() => clearCart(), 500);
+      }
     } catch (err: any) {
-      Alert.alert('Order Failed', err.response?.data?.message || 'Something went wrong. Please try again.');
+      // Catch specific Razorpay cancellation details natively
+      if (err.description) {
+        Alert.alert('Payment Cancelled', err.description || 'You cancelled the payment.');
+      } else {
+        Alert.alert('Order Failed', err.response?.data?.message || 'Something went wrong. Please try again.');
+      }
     } finally {
       setIsPlacing(false);
     }
