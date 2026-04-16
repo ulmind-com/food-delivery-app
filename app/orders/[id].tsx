@@ -159,13 +159,13 @@ function OrderTrackingScreen() {
   const isActive = !["DELIVERED", "CANCELLED"].includes(status);
 
   const deliveryCoords = order?.deliveryCoordinates || order?.deliveryAddress?.coordinates || (order?.deliveryAddress?.lat != null ? { lat: order.deliveryAddress.lat, lng: order.deliveryAddress.lng } : null);
-  const userLat: number | undefined = deliveryCoords?.lat ?? deliveryCoords?.latitude;
-  const userLng: number | undefined = deliveryCoords?.lng ?? deliveryCoords?.longitude;
+  const userLat: number | undefined = deliveryCoords?.lat ?? deliveryCoords?.latitude ?? deliveryCoords?.[1];
+  const userLng: number | undefined = deliveryCoords?.lng ?? deliveryCoords?.longitude ?? deliveryCoords?.[0];
   const restaurantLat: number | undefined = restaurant?.location?.lat;
   const restaurantLng: number | undefined = restaurant?.location?.lng;
   const showMap = (!!restaurantLat && !!restaurantLng) && (!!userLat && !!userLng);
 
-  const { isRaining: dynamicIsRaining } = useWeather(restaurantLat || userLat, restaurantLng || userLng);
+  const { isRaining: dynamicIsRaining } = useWeather(userLat || restaurantLat, userLng || restaurantLng);
   const isRaining = dynamicIsRaining;
 
   useEffect(() => {

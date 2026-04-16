@@ -462,10 +462,10 @@ export default function HomeScreen() {
         : selectedAddress.addressLine1?.split(",")[0]?.trim() || "My Location"
     : userName ? `Hi, ${userName.split(' ')[0]}!` : 'Deliver to';
 
-  const userLat: number | undefined = selectedAddress?.lat || selectedAddress?.coordinates?.[1] || selectedAddress?.latitude;
-  const userLng: number | undefined = selectedAddress?.lng || selectedAddress?.coordinates?.[0] || selectedAddress?.longitude;
+  const userLat: number | undefined = selectedAddress?.lat || selectedAddress?.coordinates?.lat || selectedAddress?.coordinates?.[1] || selectedAddress?.latitude;
+  const userLng: number | undefined = selectedAddress?.lng || selectedAddress?.coordinates?.lng || selectedAddress?.coordinates?.[0] || selectedAddress?.longitude;
   const { isRaining: dynamicIsRaining } = useWeather(userLat, userLng);
-  const isRaining = dynamicIsRaining;
+  const isRaining = dynamicIsRaining; console.log('DEBUG WEATHER:', userLat, userLng, isRaining);
 
   const locationSub = selectedAddress
     ? [selectedAddress.city, selectedAddress.state].filter(Boolean).join(", ")
@@ -743,11 +743,9 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         onScroll={scrollHandler}
         scrollEventThrottle={16}
-        stickyHeaderIndices={[2]}
+        stickyHeaderIndices={[1]}
       >
-        {loading ? <HomeSkeletonLoader /> : null}
-
-        {!loading ? <HeroBannerSection /> : null}
+        {loading ? <HomeSkeletonLoader /> : <HeroBannerSection />}
 
         {!loading ? (
           <View style={{ backgroundColor: '#FFFFFF', paddingTop: 16, paddingBottom: 8, zIndex: 10, elevation: 10 }}>
@@ -776,7 +774,7 @@ export default function HomeScreen() {
             </ScrollView>
           </Animated.View>
         </View>
-        ) : null}
+        ) : <View />}
 
         {!loading ? <View style={styles.divider} /> : null}
 

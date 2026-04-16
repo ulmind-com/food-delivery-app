@@ -420,8 +420,8 @@ export default function CheckoutScreen() {
             </View>
             <View style={styles.billRow}>
               <Text style={styles.billKey}>Delivery fee</Text>
-              <Text style={styles.billVal}>
-                {deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : selectedAddress ? 'FREE' : '—'}
+              <Text style={[styles.billVal, isCartLoading && { color: PRIMARY, fontSize: 13 }]}>
+                {isCartLoading ? 'Calculating...' : deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : selectedAddress ? 'FREE' : '—'}
               </Text>
             </View>
             <View style={styles.billRow}>
@@ -494,12 +494,17 @@ export default function CheckoutScreen() {
           <TouchableOpacity 
             style={[styles.paymentToggle, paymentMethod === 'ONLINE' && styles.paymentToggleActive]}
             onPress={() => setPaymentMethod('ONLINE')}
+            disabled={isLoading}
           >
-            <ReceiptText size={16} color={paymentMethod === 'ONLINE' ? PRIMARY : MUTED} strokeWidth={2.5} />
-            <Text style={[styles.paymentToggleText, paymentMethod === 'ONLINE' && { color: PRIMARY }]}>
+            {isCartLoading ? (
+               <ActivityIndicator size="small" color={PRIMARY} />
+            ) : (
+               <ReceiptText size={16} color={paymentMethod === 'ONLINE' ? PRIMARY : MUTED} strokeWidth={2.5} />
+            )}
+            <Text style={[styles.paymentToggleText, paymentMethod === 'ONLINE' && { color: PRIMARY }, isCartLoading && { color: MUTED }]}>
               Pay Online
             </Text>
-            {paymentMethod === 'ONLINE' && <View style={styles.paymentActiveDot} />}
+            {paymentMethod === 'ONLINE' && !isCartLoading && <View style={styles.paymentActiveDot} />}
           </TouchableOpacity>
 
           <View style={{ width: 8 }} />
@@ -511,15 +516,20 @@ export default function CheckoutScreen() {
               isCodDisabled && styles.paymentToggleDisabled,
             ]}
             onPress={() => !isCodDisabled && setPaymentMethod('COD')}
-            disabled={isCodDisabled}
+            disabled={isCodDisabled || isLoading}
           >
-            <Banknote size={16} color={isCodDisabled ? '#D1D5DB' : paymentMethod === 'COD' ? PRIMARY : MUTED} strokeWidth={2.5} />
+            {isCartLoading ? (
+               <ActivityIndicator size="small" color={PRIMARY} />
+            ) : (
+               <Banknote size={16} color={isCodDisabled ? '#D1D5DB' : paymentMethod === 'COD' ? PRIMARY : MUTED} strokeWidth={2.5} />
+            )}
             <Text style={[
               styles.paymentToggleText, 
               paymentMethod === 'COD' && { color: PRIMARY },
               isCodDisabled && { color: '#D1D5DB' },
+              isCartLoading && { color: MUTED }
             ]}>Cash</Text>
-            {paymentMethod === 'COD' && !isCodDisabled && <View style={styles.paymentActiveDot} />}
+            {paymentMethod === 'COD' && !isCodDisabled && !isCartLoading && <View style={styles.paymentActiveDot} />}
           </TouchableOpacity>
         </View>
         {isCodDisabled && (
