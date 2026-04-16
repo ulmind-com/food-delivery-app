@@ -99,7 +99,7 @@ export default function ProfileScreen() {
 
   // ─── Menu Item ──────────────────────────────────
   const MenuItem = ({ icon, label, sub, onPress, idx }: any) => (
-    <Animated.View entering={FadeInDown.delay(80 + idx * 50).springify()}>
+    <Animated.View entering={FadeInDown.delay(80 + idx * 50).duration(400)}>
       <TouchableOpacity
         style={styles.menuItem}
         activeOpacity={0.7}
@@ -133,7 +133,7 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* ─── Profile Card ─── */}
-        <Animated.View entering={FadeInDown.delay(50).springify()} style={styles.profileCard}>
+        <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.profileCard}>
           <View style={styles.profileTop}>
             <View style={styles.avatarRing}>
               {displayImage ? (

@@ -48,6 +48,7 @@ interface CartState {
     type?: string;
     category?: string;
     variant?: string;
+    quantity?: number;
   }) => Promise<void>;
   incrementItem: (itemId: string) => Promise<void>;
   decrementItem: (itemId: string) => Promise<void>;
@@ -223,14 +224,15 @@ export const useCartStore = create<CartState & { syncCount: number; fetchVersion
   addItem: async (item) => {
     // Optimistic: add immediately
     const optimisticId = `temp_${Date.now()}`;
-    const newPrice = item.price;
+    const qty = item.quantity || 1;
+    const newPrice = item.price * qty;
     set((s) => ({
       syncCount: s.syncCount + 1,
       fetchVersion: s.fetchVersion + 1,
       items: [...s.items, {
         ...item,
         itemId: optimisticId,
-        quantity: 1,
+        quantity: qty,
         type: item.type as 'Veg' | 'Non-Veg' | undefined,
       }],
       totalPrice: s.totalPrice + newPrice,
@@ -240,7 +242,7 @@ export const useCartStore = create<CartState & { syncCount: number; fetchVersion
     try {
       await cartApi.addToCart({
         productId: item._id,
-        quantity: 1,
+        quantity: qty,
         variant: item.variant,
       });
       // Allow fetchCart to execute and update state fully

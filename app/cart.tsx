@@ -63,7 +63,7 @@ export default function CartScreen() {
         Your cart is feeling lonely
       </Animated.Text>
       <Animated.Text entering={FadeInDown.delay(450).duration(500)} style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
-        Looks like you haven't added anything yet.{"\n"}Let's fix that!
+        Good food is just a tap away.{"\n"}Browse our menu & treat yourself!
       </Animated.Text>
       <Animated.View entering={FadeInDown.delay(600).duration(500)}>
         <TouchableOpacity
@@ -71,8 +71,8 @@ export default function CartScreen() {
           activeOpacity={0.85}
           onPress={() => router.push('/(tabs)')}
         >
-          <Text style={styles.emptyCtaBtnText}>Start Shopping</Text>
-          <ChevronRight size={16} color="#FFFFFF" strokeWidth={3} />
+          <Text style={styles.emptyCtaBtnText}>Browse Menu</Text>
+          <ChevronRight size={18} color="#FFFFFF" strokeWidth={3} />
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -287,17 +287,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
+    paddingTop: Platform.OS === 'ios' ? 60 : 48,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backButton: {
-    padding: 8,
-    marginLeft: -8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.04)',
   },
   headerTitle: {
     fontFamily: 'Inter-Black',
-    fontSize: 20,
+    fontSize: 18,
+    letterSpacing: -0.3,
   },
   clearBtn: {
     padding: 8,
@@ -353,23 +358,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#1A1A1A',
-    paddingHorizontal: 32,
+    gap: 8,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 36,
     paddingVertical: 16,
-    borderRadius: 16,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 6,
+    borderRadius: 14,
+    marginTop: 24,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   emptyCtaBtnText: {
     fontFamily: 'Inter-Bold',
-    fontSize: 15,
+    fontSize: 16,
     color: '#FFFFFF',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   scrollContent: {
     flexGrow: 1,

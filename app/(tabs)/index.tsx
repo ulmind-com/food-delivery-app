@@ -40,7 +40,6 @@ import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-spe
 import LottieView from 'lottie-react-native';
 import { menuApi, restaurantApi, couponApi, userApi } from '../../services/api';
 import { ProductCard } from '../../components/ProductCard';
-import { ProductDetailSheet } from '../../components/ProductDetailSheet';
 import { FloatingCartBar } from '../../components/FloatingCartBar';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useCartStore } from '../../store/useCartStore';
@@ -125,30 +124,56 @@ function RainDrop({ leftPct, delay, duration, height }: { leftPct: number; delay
   );
 }
 
+const LOADING_TEXTS = [
+  "Firing up the pans... 🔥",
+  "Gathering the freshest ingredients... 🥬",
+  "Adding a secret pinch of love... ✨",
+  "Good food takes time, but we're hurrying! 🏃‍♂️",
+  "Finding our quickest delivery hero... 🦸‍♂️",
+  "Seasoning your meal to perfection... 🧂",
+  "Assembling your dream plate... 🍽️",
+  "Cooking up something truly delicious... 🍳"
+];
+
 function HomeSkeletonLoader() {
+  const [loadingText, setLoadingText] = useState(LOADING_TEXTS[0]);
+
+  useEffect(() => {
+    setLoadingText(LOADING_TEXTS[Math.floor(Math.random() * LOADING_TEXTS.length)]);
+    
+    // Cycle texts every 2.5 seconds to keep user engaged
+    const interval = setInterval(() => {
+        setLoadingText(LOADING_TEXTS[Math.floor(Math.random() * LOADING_TEXTS.length)]);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const { height: screenHeight } = Dimensions.get('window');
+
   return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
-      <ShimmerBlock w="100%" h={180} r={16} style={{ marginBottom: 24 }} />
-      <ShimmerBlock w={140} h={18} style={{ marginBottom: 12 }} />
-      <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
-        {[1, 2, 3, 4].map(i => (
-          <View key={i} style={{ alignItems: 'center', gap: 6 }}>
-            <ShimmerBlock w={68} h={68} r={34} />
-            <ShimmerBlock w={50} h={12} r={4} />
-          </View>
-        ))}
+    <View style={{ alignItems: 'center', justifyContent: 'center', height: screenHeight * 0.7 }}>
+      <View style={{ width: 90, height: 90, marginBottom: 8 }}>
+        <LottieView
+          source={require('../../assets/lottie/Pizza.json')}
+          autoPlay
+          loop
+          style={{ width: '100%', height: '100%' }}
+        />
       </View>
-      {[1, 2, 3].map(i => (
-        <View key={i} style={{ flexDirection: 'row', gap: 12, marginBottom: 16, padding: 12, borderRadius: 16, backgroundColor: '#FAFAFA' }}>
-          <View style={{ flex: 1, gap: 8, justifyContent: 'center' }}>
-            <ShimmerBlock w="40%" h={10} r={4} />
-            <ShimmerBlock w="80%" h={16} r={4} />
-            <ShimmerBlock w="30%" h={16} r={4} />
-            <ShimmerBlock w="95%" h={10} r={4} />
-          </View>
-          <ShimmerBlock w={100} h={100} r={12} />
-        </View>
-      ))}
+      <Animated.Text 
+        key={loadingText} 
+        entering={FadeIn.duration(400)} 
+        style={{ 
+          fontFamily: 'Inter-Medium', 
+          fontSize: 15, 
+          color: '#6B7280', 
+          textAlign: 'center',
+          paddingHorizontal: 40 
+        }}
+      >
+        {loadingText}
+      </Animated.Text>
     </View>
   );
 }
@@ -253,6 +278,10 @@ function HeroBannerSection() {
             <View style={[styles.heroVideoCard, { width: CARD_WIDTH, marginRight: 0 }]}>
               {item.type === 'video' ? (
                 <>
+                  {/* Loading spinner — visible behind video while buffering */}
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', zIndex: 0 }}>
+                    <ActivityIndicator size="small" color={PRIMARY} />
+                  </View>
                   {Platform.OS === 'web' ? (
                     <video
                       key={`vid-${index}-${item.url}`}
@@ -303,13 +332,7 @@ function HeroBannerSection() {
                     />
                   )}
 
-                  <View style={styles.heroOverlay} />
-                  <View style={styles.heroTextArea}>
-                    <Text style={styles.heroWelcome}>🍕 Welcome to FoodieExpress</Text>
-                    <Text style={styles.heroHeadline}>
-                      Crafted with <Text style={{ color: PRIMARY }}>passion</Text>,{'\n'}served with love.
-                    </Text>
-                  </View>
+
                 </>
               ) : (
                 /* ── ULTRA Premium TICKET Coupon UI ── */
@@ -351,7 +374,7 @@ function HeroBannerSection() {
                     {/* Mascot Image / Lottie Animation */}
                     <View style={styles.ticketRight}>
                       <LottieView
-                        source={require('../../public/Fast-food.json')}
+                        source={require('../../assets/lottie/happy-woman-eating.json')}
                         autoPlay
                         loop
                         style={styles.ticketMascot}
@@ -710,10 +733,7 @@ export default function HomeScreen() {
 
   const handleCategorySelect = (id: string) => {
     setSelectedCategory(id === selectedCategory ? '' : id);
-  };
-
-  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
-  const filteredProducts = getFilteredProducts();
+  };  const filteredProducts = getFilteredProducts();
 
   return (
     <View style={styles.container}>
@@ -834,7 +854,7 @@ export default function HomeScreen() {
         {loading ? <HomeSkeletonLoader /> : <HeroBannerSection />}
 
         {!loading ? (
-          <View style={{ backgroundColor: '#FFFFFF', paddingTop: 16, paddingBottom: 8, zIndex: 10, elevation: 10 }}>
+          <View style={{ backgroundColor: '#FFFFFF', paddingTop: 16, paddingBottom: 8 }}>
             <Animated.View entering={FadeInDown.delay(250).duration(400)}>
               <ScrollView
                 horizontal
@@ -882,7 +902,10 @@ export default function HomeScreen() {
                   <Animated.View key={item._id} entering={FadeInDown.delay(350 + idx * 60).duration(400)}>
                     <ProductCard
                       item={item}
-                      onPress={() => setSelectedProduct(item)}
+                      onPress={() => router.push({ 
+                        pathname: '/product/[id]', 
+                        params: { id: item._id, itemData: encodeURIComponent(JSON.stringify(item)) } 
+                      })}
                     />
                   </Animated.View>
                 ))}
@@ -934,11 +957,6 @@ export default function HomeScreen() {
       {/* Floating Cart Bar */}
       <FloatingCartBar />
 
-      {/* Product Detail Sheet */}
-      <ProductDetailSheet
-        item={selectedProduct}
-        onClose={() => setSelectedProduct(null)}
-      />
 
       {/* ─── VOICE SEARCH OVERLAY ─── */}
       {isListening && (
@@ -1024,7 +1042,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 44, paddingBottom: 10,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1, borderBottomColor: '#F3F3F3',
   },
   headerLeft: { flex: 1 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -1057,12 +1074,11 @@ const styles = StyleSheet.create({
   stickySearchWrap: {
     paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1, borderBottomColor: '#F3F3F3',
   },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F3F4F6', borderRadius: 14,
-    paddingHorizontal: 14, height: 48,
+    backgroundColor: '#F3F4F6', borderRadius: 24,
+    paddingHorizontal: 16, height: 48,
     borderWidth: 1, borderColor: '#E5E7EB',
   },
   searchInput: {
@@ -1235,26 +1251,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A2E', position: 'relative',
   },
   heroVideoImage: { width: '100%', height: '100%' },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 20,
-  },
-  heroTextArea: {
-    position: 'absolute', bottom: 20, left: 20, right: 20, zIndex: 10,
-  },
-  heroWelcome: {
-    fontFamily: 'Inter-Bold', fontSize: 12, color: PRIMARY,
-    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4,
-  },
-  heroHeadline: {
-    fontFamily: 'Inter-Black', fontSize: 22, color: '#FFFFFF', lineHeight: 28,
-  },
   heroDotsRow: {
-    position: 'absolute', bottom: 12, left: 0, right: 0,
-    flexDirection: 'row', justifyContent: 'center', gap: 5, zIndex: 10,
+    position: 'absolute', bottom: 10, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'center', gap: 6, zIndex: 10,
   },
-  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },
-  heroDotActive: { width: 18, borderRadius: 3, backgroundColor: '#FFFFFF' },
+  heroDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' },
+  heroDotActive: { width: 22, borderRadius: 4, backgroundColor: '#FFFFFF' },
   heroCouponCard: { flex: 1, borderRadius: 16, overflow: 'hidden', flexDirection: 'column', position: 'relative' },
   ticketTop: { flex: 1, flexDirection: 'row' },
   ticketLeft: { flex: 1, padding: 20, justifyContent: 'center' },
@@ -1269,8 +1271,8 @@ const styles = StyleSheet.create({
   ticketCodeRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.15)', alignSelf: 'flex-start', borderRadius: 8, paddingLeft: 12, paddingRight: 4, paddingVertical: 4 },
   ticketCode: { fontFamily: 'Inter-Black', fontSize: 14, color: '#FFFFFF', letterSpacing: 1.5, marginRight: 10 },
   ticketCopyBtn: { backgroundColor: 'rgba(255,255,255,0.25)', padding: 6, borderRadius: 6 },
-  ticketRight: { width: 120, justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden' },
-  ticketMascot: { width: 140, height: 140, marginBottom: -20, marginRight: -20 },
+  ticketRight: { width: 120, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  ticketMascot: { width: 130, height: 130 },
   ticketBottom: { height: 36, backgroundColor: 'rgba(0,0,0,0.15)', justifyContent: 'center', alignItems: 'center' },
   ticketValidText: { fontFamily: 'Inter-Bold', fontSize: 10, color: 'rgba(255,255,255,0.7)', letterSpacing: 1, textTransform: 'uppercase' },
   ticketNotchLeft: { position: 'absolute', top: '50%', left: -12, width: 24, height: 24, borderRadius: 12, backgroundColor: '#F8F9FA' },

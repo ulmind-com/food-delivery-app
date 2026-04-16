@@ -4,13 +4,13 @@
     "slug": "food-delivery-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/logo/restaurantLOGO.png",
     "scheme": "foodie",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/logo/restaurantLOGO.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FC8019"
+      "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
@@ -32,9 +32,8 @@
       "package": "com.foodie.delivery",
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
-        "backgroundColor": "#FC8019",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/logo/restaurantLOGO.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": [
