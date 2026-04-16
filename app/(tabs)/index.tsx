@@ -36,6 +36,7 @@ import Animated, {
   SlideInRight,
   ZoomIn,
 } from 'react-native-reanimated';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import LottieView from 'lottie-react-native';
 import { menuApi, restaurantApi, couponApi, userApi } from '../../services/api';
 import { ProductCard } from '../../components/ProductCard';
@@ -77,6 +78,50 @@ function ShimmerBlock({ w, h, r = 8, style }: { w: number | string; h: number; r
       width: w as any, height: h, borderRadius: r,
       backgroundColor: '#F0F0F5',
     }, animStyle, style]} />
+  );
+}
+
+// ─── Animated RainDrop Component ───
+function RainDrop({ leftPct, delay, duration, height }: { leftPct: number; delay: number; duration: number; height: number }) {
+  const translateY = useSharedValue(-30);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    translateY.value = withDelay(delay,
+      withRepeat(
+        withTiming(250, { duration, easing: Easing.linear }),
+        -1, false
+      )
+    );
+    opacity.value = withDelay(delay,
+      withRepeat(
+        withSequence(
+          withTiming(0.7, { duration: 100 }),
+          withTiming(0.7, { duration: duration - 200 }),
+          withTiming(0, { duration: 100 })
+        ),
+        -1, false
+      )
+    );
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[{
+        position: 'absolute',
+        left: `${leftPct}%`,
+        top: -20,
+        width: 1.5,
+        height,
+        backgroundColor: 'rgba(255,255,255,0.45)',
+        borderRadius: 1,
+      }, animStyle]}
+    />
   );
 }
 
@@ -435,6 +480,16 @@ export default function HomeScreen() {
   const isTabBarHidden = useContext(TabScrollContext);
   const lastScrollY = useSharedValue(0);
 
+  // ─── Raindrop Re-render Memoization ───
+  const rainDropsConfig = React.useMemo(() => {
+    return Array.from({ length: 35 }).map(() => ({
+      left: Math.random() * 100,
+      delay: Math.random() * 1500,
+      duration: 600 + Math.random() * 500,
+      h: 12 + Math.random() * 14
+    }));
+  }, []);
+
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       if (!isTabBarHidden) return;
@@ -481,6 +536,8 @@ export default function HomeScreen() {
   const [freshImage, setFreshImage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [speechPartial, setSpeechPartial] = useState('');
+  const [speechError, setSpeechError] = useState('');
   const [showVegSplash, setShowVegSplash] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
 
@@ -530,7 +587,31 @@ export default function HomeScreen() {
     fetchHomeData();
   }, []);
 
-  const handleVoiceSearch = () => {
+  // Native Speech Event Listeners
+  useSpeechRecognitionEvent('start', () => {
+    setIsListening(true);
+    setSpeechError('');
+    setSpeechPartial('Listening...');
+  });
+  useSpeechRecognitionEvent('end', () => setIsListening(false));
+  useSpeechRecognitionEvent('error', (event) => {
+    setSpeechError('Sorry, could not understand. Try again.');
+    setTimeout(() => setIsListening(false), 2000);
+  });
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcript = event.results[0]?.transcript || '';
+    setSpeechPartial(transcript);
+    
+    // If it's the final result, trigger search automatically
+    if (event.isFinal) {
+      let finalSpeech = transcript;
+      if (finalSpeech.endsWith('.')) finalSpeech = finalSpeech.slice(0, -1);
+      setSearchQuery(finalSpeech);
+      setTimeout(() => setIsListening(false), 1000);
+    }
+  });
+
+  const handleVoiceSearch = async () => {
     if (Platform.OS === 'web') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -542,36 +623,47 @@ export default function HomeScreen() {
 
         recognition.onresult = (event: any) => {
           let transcript = event.results[0][0].transcript;
-          // Clean up transcript if ending with a period
-          if (transcript.endsWith('.')) {
-            transcript = transcript.slice(0, -1);
-          }
+          if (transcript.endsWith('.')) transcript = transcript.slice(0, -1);
           setSearchQuery(transcript);
           setIsListening(false);
         };
-
-        recognition.onerror = (event: any) => {
-          console.warn('Speech recognition error', event.error);
-          setIsListening(false);
-        };
-
-        recognition.onend = () => {
-          setIsListening(false);
-        };
-
-        try {
-          recognition.start();
-        } catch (e) {
-          setIsListening(false);
-        }
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        try { recognition.start(); } catch (e) { setIsListening(false); }
       } else {
         alert('Real-time Voice Search requires Chrome or Edge on Web. Try entering manually!');
       }
     } else {
-      // Mobile: Native keyboard integration fallback
-      alert('Native App Voice Search utilizes your Phone Keyboard Dictation Mic. Please use your keyboard Mic for dynamic speech!');
-      searchInputRef.current?.focus();
+      // Mobile: Trigger Zomato-tier Native Voice Overlay!
+      setSpeechPartial('Listening...');
+      setSpeechError('');
+      setIsListening(true);
+      
+      const permItem = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permItem.granted) {
+        setSpeechError('Tap allow so we can hear your cravings!');
+        setTimeout(() => setIsListening(false), 3000);
+        return;
+      }
+      
+      try {
+        ExpoSpeechRecognitionModule.start({
+          lang: 'en-US',
+          interimResults: true,
+          maxAlternatives: 1
+        });
+      } catch (err) {
+        setSpeechError('Hardware error starting microphone.');
+        setTimeout(() => setIsListening(false), 2000);
+      }
     }
+  };
+
+  const stopVoiceSearch = () => {
+    if (Platform.OS !== 'web') {
+      ExpoSpeechRecognitionModule.stop();
+    }
+    setIsListening(false);
   };
 
   const handleVegToggle = () => {
@@ -626,27 +718,21 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       {/* ─── WEATHER THEME WRAPPER (Spans Header & Search) ─── */}
-      <Animated.View entering={FadeIn.duration(400)} style={isRaining && { backgroundColor: '#1F2432', paddingBottom: 0 }}>
-        {/* Dynamic Soft Clouds */}
+      <Animated.View entering={FadeIn.duration(400)} style={isRaining && { paddingBottom: 0 }}>
+        {/* ═══ NEW: rainImage.png Background + Animated Raindrops ═══ */}
         {isRaining && (
-          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-            <Cloud size={140} color="#FFFFFF" fill="#FFFFFF" opacity={0.25} style={{ position: 'absolute', top: -30, left: -20 }} />
-            <Cloud size={200} color="#FFFFFF" fill="#FFFFFF" opacity={0.2} style={{ position: 'absolute', top: -50, right: -40 }} />
-            <Cloud size={100} color="#FFFFFF" fill="#FFFFFF" opacity={0.15} style={{ position: 'absolute', top: 20, right: 90 }} />
+          <View style={[StyleSheet.absoluteFillObject, { overflow: 'hidden' }]} pointerEvents="none">
+            {/* Background Image */}
+            <Image
+              source={require('../../assets/images/rainImage.png')}
+              style={[StyleSheet.absoluteFillObject, { opacity: 0.95 }]}
+              contentFit="cover"
+            />
+            {/* Animated Raindrops Layer */}
+            {rainDropsConfig.map((rd, i) => (
+              <RainDrop key={`rd-${i}`} leftPct={rd.left} delay={rd.delay} duration={rd.duration} height={rd.h} />
+            ))}
           </View>
-        )}
-        
-        {/* Dynamic Weather Background Video */}
-        {isRaining && (
-          <Video
-            source={require('../../assets/Video/ranin.mp4')}
-            style={[StyleSheet.absoluteFillObject, { opacity: 0.60, zIndex: 0 }]}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping
-            isMuted
-            pointerEvents="none"
-          />
         )}
 
         {/* Seamless Bottom Gradient for Weather Theme */}
@@ -857,14 +943,26 @@ export default function HomeScreen() {
       {/* ─── VOICE SEARCH OVERLAY ─── */}
       {isListening && (
         <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)} style={styles.voiceOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={stopVoiceSearch} />
           <View style={styles.voiceModal}>
-            <Animated.View entering={ZoomIn.springify().damping(12).delay(100)} style={styles.voiceMicCircle}>
+            <Animated.View 
+               entering={ZoomIn.springify().damping(12).delay(100)} 
+               style={[styles.voiceMicCircle, speechError ? { backgroundColor: '#DC2626', shadowColor: '#DC2626' } : {}]}
+            >
               <Mic2 size={40} color="#FFFFFF" />
             </Animated.View>
-            <Text style={styles.voiceText}>Listening...</Text>
-            <Text style={styles.voiceSubtext}>Try saying "Biryani" or "Pizza"</Text>
             
-            <TouchableOpacity onPress={() => setIsListening(false)} style={styles.voiceCancelBtn}>
+            <Text style={[styles.voiceText, speechError ? { color: '#DC2626' } : {}]}>
+              {speechError || speechPartial || 'Listening...'}
+            </Text>
+            
+            {!speechError && (
+              <Text style={styles.voiceSubtext}>
+                {speechPartial.length > 0 ? "Keep speaking..." : "Try saying \"Biryani\" or \"Pizza\""}
+              </Text>
+            )}
+            
+            <TouchableOpacity onPress={stopVoiceSearch} style={styles.voiceCancelBtn}>
               <Text style={styles.voiceCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>

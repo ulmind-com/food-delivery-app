@@ -34,7 +34,7 @@ export default function CheckoutScreen() {
   const { 
     items, totalPrice, discountAmount, finalPrice, tax, taxBreakdown, 
     deliveryFee, appliedCoupon, clearCart, incrementItem, decrementItem,
-    isLoading: isCartLoading, fetchCart, addItem
+    isLoading: isCartLoading, fetchCart, addItem, syncCount
   } = useCartStore();
   
   const { selectedAddress } = useLocationStore();
@@ -47,6 +47,8 @@ export default function CheckoutScreen() {
   const [isPlacing, setIsPlacing] = useState(false);
   const [restaurant, setRestaurant] = useState<any>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<any[]>([]);
+
+  const [isInitialMount, setIsInitialMount] = useState(true);
 
   // Fetch restaurant info + recommendations on mount
   useEffect(() => {
@@ -61,11 +63,16 @@ export default function CheckoutScreen() {
 
   // Fetch cart with coordinates when we have a selected address
   useEffect(() => {
-    if (selectedAddress?.coordinates?.lat && selectedAddress?.coordinates?.lng) {
-      fetchCart({ lat: selectedAddress.coordinates.lat, lng: selectedAddress.coordinates.lng });
-    } else {
-      fetchCart();
-    }
+    setIsInitialMount(true);
+    const doFetch = async () => {
+      if (selectedAddress?.coordinates?.lat && selectedAddress?.coordinates?.lng) {
+        await fetchCart({ lat: selectedAddress.coordinates.lat, lng: selectedAddress.coordinates.lng });
+      } else {
+        await fetchCart();
+      }
+      setIsInitialMount(false);
+    };
+    doFetch();
   }, [selectedAddress?._id]);
 
   const isRestaurantClosed = restaurant && !restaurant.isOpen;
@@ -104,7 +111,7 @@ export default function CheckoutScreen() {
     }
   }, [isCodDisabled]);
 
-  const isLoading = isPlacing || isCartLoading;
+  const isLoading = isPlacing || isCartLoading || syncCount > 0;
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
@@ -420,8 +427,8 @@ export default function CheckoutScreen() {
             </View>
             <View style={styles.billRow}>
               <Text style={styles.billKey}>Delivery fee</Text>
-              <Text style={[styles.billVal, isCartLoading && { color: PRIMARY, fontSize: 13 }]}>
-                {isCartLoading ? 'Calculating...' : deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : selectedAddress ? 'FREE' : '—'}
+              <Text style={[styles.billVal, (isCartLoading || isInitialMount) && { color: PRIMARY, fontSize: 13 }]}>
+                {(isCartLoading || isInitialMount) ? 'Calculating...' : deliveryFee > 0 ? `₹${deliveryFee.toFixed(2)}` : selectedAddress ? 'FREE' : '—'}
               </Text>
             </View>
             <View style={styles.billRow}>
@@ -552,7 +559,7 @@ export default function CheckoutScreen() {
               <View style={styles.loadingRow}>
                 <ActivityIndicator color="#FFFFFF" size="small" />
                 <Text style={styles.loadingText}>
-                  {isCartLoading ? 'Preparing Cart...' : 'Placing Order...'}
+                  {(isCartLoading || syncCount > 0) ? 'Updating Cart...' : 'Placing Order...'}
                 </Text>
               </View>
             ) : (

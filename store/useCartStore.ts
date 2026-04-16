@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand';
 import { cartApi } from '../services/api';
+import { useLocationStore } from './useLocationStore';
 
 interface CartItem {
   _id: string;         // Product ID
@@ -151,6 +152,14 @@ export const useCartStore = create<CartState & { syncCount: number; fetchVersion
   toggleCart: () => set((s) => ({ isOpen: !s.isOpen })),
 
   fetchCart: async (coords) => {
+    // Inject robust address coords if not explicitly provided (fixes sudden 0 fee bug on optimistics)
+    if (!coords) {
+      const globalAddr = useLocationStore.getState().selectedAddress;
+      if (globalAddr?.coordinates?.lat && globalAddr?.coordinates?.lng) {
+        coords = { lat: globalAddr.coordinates.lat, lng: globalAddr.coordinates.lng };
+      }
+    }
+
     const currentVersion = get().fetchVersion + 1;
     set({ isLoading: true, fetchVersion: currentVersion });
 

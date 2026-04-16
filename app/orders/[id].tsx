@@ -12,7 +12,7 @@ import {
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import Animated, { 
-  FadeInDown, FadeIn, withTiming, withRepeat, withSequence, 
+  FadeInDown, FadeIn, withTiming, withRepeat, withSequence, withDelay,
   useAnimatedStyle, useSharedValue, Easing, SlideInDown, SlideOutDown,
   withSpring
 } from 'react-native-reanimated';
@@ -57,6 +57,50 @@ const SkeletonItem = ({ heightStyle }: { heightStyle: number }) => {
   const animStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
   return <Animated.View style={[styles.skeleton, animStyle, { height: heightStyle }]} />;
 };
+
+// ─── Animated RainDrop Component ───
+function RainDrop({ leftPct, delay, duration, height }: { leftPct: number; delay: number; duration: number; height: number }) {
+  const translateY = useSharedValue(-30);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    translateY.value = withDelay(delay,
+      withRepeat(
+        withTiming(250, { duration, easing: Easing.linear }),
+        -1, false
+      )
+    );
+    opacity.value = withDelay(delay,
+      withRepeat(
+        withSequence(
+          withTiming(0.7, { duration: 100 }),
+          withTiming(0.7, { duration: duration - 200 }),
+          withTiming(0, { duration: 100 })
+        ),
+        -1, false
+      )
+    );
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[{
+        position: 'absolute',
+        left: `${leftPct}%`,
+        top: -20,
+        width: 1.5,
+        height,
+        backgroundColor: 'rgba(255,255,255,0.45)',
+        borderRadius: 1,
+      }, animStyle]}
+    />
+  );
+}
 
 function OrderTrackingScreen() {
   const { id } = useLocalSearchParams();
@@ -166,7 +210,18 @@ function OrderTrackingScreen() {
   const showMap = (!!restaurantLat && !!restaurantLng) && (!!userLat && !!userLng);
 
   const { isRaining: dynamicIsRaining } = useWeather(userLat || restaurantLat, userLng || restaurantLng);
-  const isRaining = dynamicIsRaining;
+  // Disable weather theme if order is DELIVERED or CANCELLED
+  const isRaining = dynamicIsRaining && isActive;
+
+  // ─── Raindrop Re-render Memoization ───
+  const rainDropsConfig = React.useMemo(() => {
+    return Array.from({ length: 35 }).map(() => ({
+      left: Math.random() * 100,
+      delay: Math.random() * 1500,
+      duration: 600 + Math.random() * 500,
+      h: 12 + Math.random() * 14
+    }));
+  }, []);
 
   useEffect(() => {
     if (!showMap || !restaurantLat || !userLat || !restaurantLng || !userLng) return;
@@ -297,26 +352,20 @@ function OrderTrackingScreen() {
           <View style={[styles.heroSection, { backgroundColor: isRaining ? '#1F2432' : cfg.bg }]}>
             {/* BACKGROUND WRAPPER (Clips overflow for backgrounds only) */}
             <View style={[StyleSheet.absoluteFillObject, { overflow: 'hidden' }]}>
-              {/* Dynamic Soft Clouds */}
+              {/* ═══ NEW: rainImage.png Background + Animated Raindrops ═══ */}
               {isRaining && (
                 <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-                  <CloudRain size={160} color="#FFFFFF" fill="#FFFFFF" opacity={0.15} style={{ position: 'absolute', top: -30, left: -20 }} />
-                  <CloudRain size={220} color="#FFFFFF" fill="#FFFFFF" opacity={0.12} style={{ position: 'absolute', top: -40, right: -50 }} />
-                  <CloudRain size={120} color="#FFFFFF" fill="#FFFFFF" opacity={0.08} style={{ position: 'absolute', top: 30, right: 100 }} />
+                  {/* Background Image */}
+                  <Image
+                    source={require('../../assets/images/rainImage.png')}
+                    style={[StyleSheet.absoluteFillObject, { opacity: 0.95 }]}
+                    contentFit="cover"
+                  />
+                  {/* Animated Raindrops Layer */}
+                  {rainDropsConfig.map((rd, i) => (
+                    <RainDrop key={`rd-${i}`} leftPct={rd.left} delay={rd.delay} duration={rd.duration} height={rd.h} />
+                  ))}
                 </View>
-              )}
-
-              {/* Dynamic Weather Background Video */}
-              {isRaining && (
-                <Video
-                  source={require('../../assets/Video/ranin.mp4')}
-                  style={[StyleSheet.absoluteFillObject, { opacity: 0.55, zIndex: 0 }]}
-                  resizeMode={ResizeMode.COVER}
-                  shouldPlay
-                  isLooping
-                  isMuted
-                  pointerEvents="none"
-                />
               )}
               
               <View style={styles.heroGlowOverlay} />
