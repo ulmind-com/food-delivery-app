@@ -112,7 +112,7 @@ export default function CheckoutScreen() {
     }
   }, [isCodDisabled]);
 
-  const isLoading = isPlacing || isCartLoading || syncCount > 0;
+  const isLoading = isPlacing || isCartLoading || syncCount > 0 || isInitialMount;
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
@@ -468,7 +468,9 @@ export default function CheckoutScreen() {
             </View>
             <View style={styles.billRow}>
               <Text style={styles.billKey}>GST (Total)</Text>
-              <Text style={styles.billVal}>₹{tax.toFixed(2)}</Text>
+              <Text style={[styles.billVal, (isCartLoading || isInitialMount) && { color: PRIMARY, fontSize: 13 }]}>
+                {(isCartLoading || isInitialMount) ? 'Calculating...' : `₹${tax.toFixed(2)}`}
+              </Text>
             </View>
             {taxBreakdown && (taxBreakdown.cgstTotal > 0 || taxBreakdown.sgstTotal > 0) && (
               <View style={styles.taxSubBlock}>
@@ -499,7 +501,9 @@ export default function CheckoutScreen() {
             <View style={styles.billTotalDivider} />
             <View style={styles.billRow}>
               <Text style={styles.billTotalKey}>To Pay</Text>
-              <Text style={styles.billTotalVal}>₹{finalPrice.toFixed(0)}</Text>
+              <Text style={styles.billTotalVal}>
+                {(isCartLoading || isInitialMount) ? '...' : `₹${finalPrice.toFixed(0)}`}
+              </Text>
             </View>
           </View>
         </Animated.View>
@@ -601,7 +605,7 @@ export default function CheckoutScreen() {
               <>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                   <Text style={styles.placeOrderLabel}>TOTAL</Text>
-                  <Text style={styles.placeOrderAmount}>₹{finalPrice.toFixed(0)}</Text>
+                  <Text style={styles.placeOrderAmount}>{(isCartLoading || isInitialMount) ? '...' : `₹${finalPrice.toFixed(0)}`}</Text>
                 </View>
                 <View style={styles.placeOrderRight}>
                   <Text style={styles.placeOrderRightText}>
