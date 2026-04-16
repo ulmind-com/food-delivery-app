@@ -38,7 +38,7 @@ export default function CartScreen() {
     }
   }, [isAuthenticated]);
 
-  const toPay = finalPrice;
+  const toPay = finalPrice - deliveryFee;
 
   const handleCheckout = () => {
     if (!isAuthenticated()) {
