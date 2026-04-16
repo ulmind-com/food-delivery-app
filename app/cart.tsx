@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, Activi
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { ShoppingBag, ArrowLeft, Trash2, Plus, Minus, Info, Clock, ChevronRight } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated';
+import LottieView from 'lottie-react-native';
 import { useCartStore } from '../store/useCartStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useTheme } from '../constants/ThemeContext';
@@ -50,18 +51,30 @@ export default function CartScreen() {
 
   const renderEmptyCart = () => (
     <View style={styles.emptyContainer}>
-      <View style={[styles.emptyIconBox, { backgroundColor: colors.muted }]}>
-        <ShoppingBag size={48} color={colors.mutedForeground} style={{ opacity: 0.5 }} />
-      </View>
-      <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Your cart is empty</Text>
-      <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
-        Add items from the menu to get started
-      </Text>
-      <Button
-        title="Browse Restaurant"
-        onPress={() => router.push('/(tabs)')}
-        style={{ marginTop: 24, width: 'auto', paddingHorizontal: 32 }}
-      />
+      <Animated.View entering={FadeIn.duration(800)} style={styles.emptyLottieWrapper}>
+        <LottieView
+          source={require('../assets/lottie/shopping.json')}
+          autoPlay
+          loop
+          style={styles.emptyLottie}
+        />
+      </Animated.View>
+      <Animated.Text entering={FadeInDown.delay(300).duration(500)} style={[styles.emptyTitle, { color: colors.foreground }]}>
+        Your cart is feeling lonely
+      </Animated.Text>
+      <Animated.Text entering={FadeInDown.delay(450).duration(500)} style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
+        Looks like you haven't added anything yet.{"\n"}Let's fix that!
+      </Animated.Text>
+      <Animated.View entering={FadeInDown.delay(600).duration(500)}>
+        <TouchableOpacity
+          style={styles.emptyCtaBtn}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(tabs)')}
+        >
+          <Text style={styles.emptyCtaBtnText}>Start Shopping</Text>
+          <ChevronRight size={16} color="#FFFFFF" strokeWidth={3} />
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 
@@ -312,24 +325,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+    paddingBottom: 80,
   },
-  emptyIconBox: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
+  emptyLottieWrapper: {
+    width: 200,
+    height: 200,
+    marginBottom: 8,
+  },
+  emptyLottie: {
+    width: '100%',
+    height: '100%',
   },
   emptyTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 20,
-    marginBottom: 8,
+    fontFamily: 'Inter-Black',
+    fontSize: 22,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   emptyDesc: {
     fontFamily: 'Inter-Medium',
     fontSize: 14,
     textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 4,
+  },
+  emptyCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  emptyCtaBtnText: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 15,
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   scrollContent: {
     flexGrow: 1,
