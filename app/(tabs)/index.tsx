@@ -18,7 +18,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, MapPin, ChevronDown, Bell, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift, Heart, User, Mic, Mic2, Cloud } from 'lucide-react-native';
+import { Search, MapPin, ChevronDown, MessageCircle, SlidersHorizontal, CheckCircle, Tag, Clock, Copy, Percent, Zap, Gift, Heart, User, Mic, Mic2, Cloud } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -784,8 +784,8 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
         <View style={[styles.headerRight, { zIndex: 5 }]}>
-          <TouchableOpacity style={[styles.headerIconBtn, isRaining && { backgroundColor: 'transparent' }]}>
-            <Bell size={22} color={isRaining ? "rgba(255,255,255,0.9)" : "#3D4152"} />
+          <TouchableOpacity style={[styles.headerIconBtn, isRaining && { backgroundColor: 'transparent' }]} onPress={() => router.push('/chat')}>
+            <MessageCircle size={22} color={isRaining ? "rgba(255,255,255,0.9)" : "#3D4152"} />
             <View style={[styles.notifDot, isRaining && { borderColor: 'transparent', right: 5, top: 4 }]} />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.avatarCircle, isRaining && { borderWidth: 0 }]} onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.7}>
@@ -1362,6 +1362,14 @@ const styles = StyleSheet.create({
     padding: 6,
     justifyContent: 'center',
   },
+  vegSplashHugeKnob: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4,
+  },
+
   vegSplashHugeKnob: {
     width: 58,
     height: 58,

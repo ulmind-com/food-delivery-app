@@ -1,16 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
-  Dimensions, ActivityIndicator, Pressable, Platform, TextInput, Alert
+  Dimensions, ActivityIndicator, Pressable, Platform, TextInput, Alert, Linking
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   ArrowLeft, CheckCircle, Package, MapPin, CreditCard, 
   Clock, XCircle, ChevronRight, ShoppingBag, ChefHat, Bike, 
-  MessageCircle, Phone, RefreshCw, CloudRain
+  MessageCircle, Phone, RefreshCw, CloudRain, Copy, Receipt, Calendar, User, MessageSquareText
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   FadeInDown, FadeIn, withTiming, withRepeat, withSequence, withDelay,
   useAnimatedStyle, useSharedValue, Easing, SlideInDown, SlideOutDown,
@@ -21,6 +22,7 @@ import { orderApi, restaurantApi } from '../../services/api';
 import { socket } from '../../services/socket';
 import MapComponent from '../../components/MapComponent';
 import { useWeather } from '../../hooks/useWeather';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -114,6 +116,9 @@ function OrderTrackingScreen() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelRemaining, setCancelRemaining] = useState('');
   const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[]>([]);
+
+  // Authenticated Used Backup
+  const { user: authUser } = useAuthStore();
 
   // Sockets
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
@@ -335,39 +340,60 @@ function OrderTrackingScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false, animation: 'slide_from_right' }} />
 
+      {/* ── OP Top Navigation Bar ── */}
+      <View style={{ 
+         paddingTop: Platform.OS === 'ios' ? 54 : 40, 
+         paddingBottom: 16, 
+         paddingHorizontal: 16, 
+         backgroundColor: '#FFFFFF', 
+         flexDirection: 'row', 
+         alignItems: 'center', 
+         justifyContent: 'space-between',
+         borderBottomWidth: 1,
+         borderBottomColor: '#F3F4F6',
+         zIndex: 100 
+      }}>
+         <TouchableOpacity 
+            onPress={() => router.replace('/(tabs)/orders')} 
+            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center' }}
+         >
+            <ArrowLeft size={20} color="#111827" />
+         </TouchableOpacity>
+         
+         <Text style={{ fontFamily: 'Inter-Black', fontSize: 17, color: '#111827', letterSpacing: -0.3 }}>
+            Order Details
+         </Text>
+
+         <TouchableOpacity 
+            onPress={() => router.push('/chat')} 
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10 }}
+         >
+            <MessageSquareText size={16} color="#EF4444" strokeWidth={2.5} />
+            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 13, color: '#EF4444' }}>Support</Text>
+         </TouchableOpacity>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        {/* ── Hero Status + Map (Seamless) ── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.heroMapWrap, { position: 'relative', overflow: 'hidden' }]}>
-          
-          {/* Back Button over Hero/Map */}
-          <TouchableOpacity 
-            onPress={() => router.replace('/(tabs)/orders')} 
-            style={styles.floatingBack}
-          >
-            <ArrowLeft size={16} color="#FFFFFF" />
-          </TouchableOpacity>
+        {/* ── Hero Status + Map (Floating Premium Card) ── */}
+        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.heroMapWrap, { position: 'relative', overflow: 'hidden', marginHorizontal: 16, marginTop: 16, borderRadius: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, borderWidth: 1, borderColor: '#F3F4F6' }]}>
 
           {/* Status Section */}
-          <View style={[styles.heroSection, { backgroundColor: isRaining ? '#1F2432' : cfg.bg }]}>
-            {/* BACKGROUND WRAPPER (Clips overflow for backgrounds only) */}
+          <LinearGradient 
+            colors={isRaining ? ['#334155', '#0F172A'] : [cfg.bg, cfg.color]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={[styles.heroSection, { overflow: 'hidden', paddingVertical: 32 }]}
+          >
+            {/* BACKGROUND WRAPPER */}
             <View style={[StyleSheet.absoluteFillObject, { overflow: 'hidden' }]}>
-              {/* ═══ NEW: rainImage.png Background + Animated Raindrops ═══ */}
               {isRaining && (
                 <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-                  {/* Background Image */}
-                  <Image
-                    source={require('../../assets/images/rainImage.png')}
-                    style={[StyleSheet.absoluteFillObject, { opacity: 0.95 }]}
-                    contentFit="cover"
-                  />
-                  {/* Animated Raindrops Layer */}
+                  <Image source={require('../../assets/images/rainImage.png')} style={[StyleSheet.absoluteFillObject, { opacity: 0.95 }]} contentFit="cover" />
                   {rainDropsConfig.map((rd, i) => (
                     <RainDrop key={`rd-${i}`} leftPct={rd.left} delay={rd.delay} duration={rd.duration} height={rd.h} />
                   ))}
                 </View>
               )}
-              
               <View style={styles.heroGlowOverlay} />
             </View>
             <View style={[styles.heroContentRow, { zIndex: 5 }]}>
@@ -389,7 +415,6 @@ function OrderTrackingScreen() {
                   </View>
                 )}
 
-                {/* Rain Warning Alert */}
                 {isRaining && status !== "DELIVERED" && status !== "CANCELLED" && (
                   <View style={[styles.prepTimeBadge, { marginTop: 4, backgroundColor: 'rgba(0,0,0,0.3)', borderColor: 'rgba(255,255,255,0.2)' }]}>
                     <CloudRain size={12} color="#FFFFFF" strokeWidth={2.5} />
@@ -402,14 +427,9 @@ function OrderTrackingScreen() {
                 </Text>
               </View>
 
-              <View style={styles.heroRightSide}>
+              <View style={[styles.heroRightSide, { transform: [{ scale: 1.45 }], right: 5, top: 5 }]}>
                 {cfg.lottie ? (
-                  <LottieView 
-                    source={cfg.lottie} 
-                    autoPlay 
-                    loop
-                    style={styles.heroLottie}
-                  />
+                  <LottieView source={cfg.lottie} autoPlay loop style={styles.heroLottie} />
                 ) : (
                   <View style={styles.heroIconBox}>
                     <cfg.icon color="#FFFFFF" size={32} />
@@ -417,7 +437,7 @@ function OrderTrackingScreen() {
                 )}
               </View>
             </View>
-          </View>
+          </LinearGradient>
 
           {/* Map Section (directly below, no gap) */}
           {showMap && (
@@ -500,101 +520,202 @@ function OrderTrackingScreen() {
           )}
         </Animated.View>
 
-        {/* ── Order Items & Bill ── */}
-        <Animated.View entering={FadeInDown.delay(250).springify()} style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-             <View style={styles.cardTitleWrap}>
-                <ShoppingBag size={16} color={PRIMARY} />
-                <Text style={styles.cardTitle}>Items · {order?.items?.length || 0}</Text>
-             </View>
-          </View>
-          
-          <View style={styles.itemsList}>
-            {(order.items || []).map((item: any, idx: number) => (
-              <View key={idx} style={styles.itemRow}>
-                {item.image && (
-                  <Image source={{ uri: item.image }} style={styles.itemThumb} contentFit="cover" />
-                )}
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName} numberOfLines={1}>
-                    {item.name || item.product?.name || item.menuItem?.name || "Item"}
-                  </Text>
-                  {item.variant && <Text style={styles.itemVariant}>{item.variant}</Text>}
-                  <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
-                </View>
-                <Text style={styles.itemPrice}>₹{Number((item.price || 0) * item.quantity).toFixed(2)}</Text>
+        {/* OP DETAILS ENHANCEMENT BEGINS HERE */}
+        
+        {/* ── 1. Restaurant & Items Layout ── */}
+        <Animated.View entering={FadeInDown.delay(250).springify()} style={[styles.card, { paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' }]}>
+           
+           {/* Restaurant Header Block */}
+           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#FFFFFF' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                 <Image source={restaurant?.logo ? { uri: restaurant.logo } : require('../../assets/images/icon.png')} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#F3F4F6' }} />
+                 <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: TEXT_COLOR }}>{restaurant?.name || 'Restaurant'}</Text>
+                    <Text style={{ fontFamily: 'Inter-Medium', fontSize: 13, color: MUTED }} numberOfLines={1}>{restaurant?.address || 'Local Kitchen'}</Text>
+                 </View>
               </View>
-            ))}
-          </View>
+              <TouchableOpacity style={styles.opCallBtn} onPress={() => { restaurant?.mobile && Linking.openURL(`tel:${restaurant.mobile.replace(/[^0-9+]/g, '')}`) }}>
+                  <Phone size={16} color="#DC2626" strokeWidth={2} />
+              </TouchableOpacity>
+           </View>
 
-          <View style={styles.billBox}>
-            <View style={styles.billRow}><Text style={styles.billKey}>Subtotal</Text><Text style={styles.billVal}>₹{Number(order.totalAmount || 0).toFixed(2)}</Text></View>
-            {order.deliveryFee > 0 && (
-              <View style={styles.billRow}><Text style={styles.billKey}>Delivery Fee</Text><Text style={styles.billVal}>₹{order.deliveryFee}</Text></View>
-            )}
-            
-            {order.taxAmount > 0 || order.cgstTotal > 0 ? (
-              <View style={styles.billRow}>
-                 <Text style={styles.billKey}>Taxes (CGST/SGST)</Text>
-                 <Text style={styles.billVal}>₹{order.taxAmount || ((order.cgstTotal||0) + (order.sgstTotal||0))}</Text>
-              </View>
-            ) : null}
+           <View style={[styles.divider, { marginVertical: 0 }]} />
 
-            {order.discountApplied > 0 && (
-              <View style={styles.billRow}>
-                 <Text style={[styles.billKey, { color: '#16A34A' }]}>Discount</Text>
-                 <Text style={[styles.billVal, { color: '#16A34A' }]}>-₹{order.discountApplied}</Text>
+           {/* Items Section */}
+           <View style={{ padding: 16, backgroundColor: '#FFFFFF' }}>
+              {/* Order ID */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                 <Text style={{ fontFamily: 'Inter-Medium', fontSize: 13, color: '#4B5563' }}>Order ID: #{order.customId || order.orderId || order._id}</Text>
+                 <TouchableOpacity><Copy size={12} color="#6B7280" /></TouchableOpacity>
               </View>
-            )}
-            <View style={styles.divider} />
-            <View style={styles.billRow}>
-              <Text style={styles.billTotalKey}>Total Paid</Text>
-              <Text style={styles.billTotalVal}>₹{Number(order.finalAmount || order.totalAmount || 0).toFixed(2)}</Text>
-            </View>
-          </View>
+
+              {/* Enhanced Items List */}
+              <View style={{ gap: 12 }}>
+                {(order.items || []).map((item: any, idx: number) => {
+                   const rawName = item.name || item.product?.name || item.menuItem?.name || "Item";
+                   // Highly dynamic veg/non-veg detection
+                   const isNonVeg = item.type === 'Non-Veg' || 
+                                    item.type?.toLowerCase().includes('non-veg') ||
+                                    item.isVeg === false || 
+                                    item.product?.isVeg === false || 
+                                    item.menuItem?.isVeg === false ||
+                                    /chicken|mutton|beef|pork|fish|egg|prawn/i.test(rawName);
+
+                   return (
+                   <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, flex: 1 }}>
+                        {isNonVeg ? (
+                          <View style={[styles.typeIcon, { borderColor: '#DC2626', marginTop: 4, width: 12, height: 12, borderRadius: 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }]}>
+                             <View style={{ width: 6, height: 6, backgroundColor: '#DC2626', borderRadius: 3 }} />
+                          </View>
+                        ) : (
+                          <View style={[styles.typeIcon, { borderColor: '#16A34A', marginTop: 4, width: 12, height: 12, borderRadius: 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }]}>
+                             <View style={{ width: 6, height: 6, backgroundColor: '#16A34A', borderRadius: 3 }} />
+                          </View>
+                        )}
+                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 14, color: TEXT_COLOR, flex: 1, lineHeight: 20 }}>
+                          {item.quantity} x {rawName}
+                        </Text>
+                      </View>
+                      <Text style={{ fontFamily: 'Inter-Medium', fontSize: 14, color: TEXT_COLOR }}>₹{Number((item.price || 0) * item.quantity).toFixed(2)}</Text>
+                   </View>
+                   );
+                })}
+              </View>
+           </View>
         </Animated.View>
 
-        {/* ── Delivery Info ── */}
-        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-             <View style={styles.cardTitleWrap}>
-                <CreditCard size={16} color={PRIMARY} />
-                <Text style={styles.cardTitle}>Payment & Delivery</Text>
-             </View>
-          </View>
-          
-          <View style={styles.paymentRow}>
-             <Text style={styles.paymentKey}>Payment</Text>
-             <Text style={styles.paymentMode}>{order.paymentMethod || "—"}</Text>
-             {order.paymentStatus && (
-               <View style={[styles.paymentBadge, { backgroundColor: PAYMENT_CONFIG[order.paymentStatus?.toUpperCase()]?.bg || '#F3F4F6' }]}>
-                 <Text style={[styles.paymentBadgeText, { color: PAYMENT_CONFIG[order.paymentStatus?.toUpperCase()]?.color || '#374151' }]}>
-                   {order.paymentStatus}
-                 </Text>
-               </View>
-             )}
-          </View>
+        {/* ── 2. Premium Bill Summary Card ── */}
+        <Animated.View entering={FadeInDown.delay(300).springify()} style={[styles.card, { paddingBottom: order.discountApplied > 0 ? 0 : 16, overflow: 'hidden' }]}>
+           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <View style={{ backgroundColor: '#F3F4F6', padding: 8, borderRadius: 12 }}>
+                 <Receipt size={18} color="#4B5563" />
+              </View>
+              <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: TEXT_COLOR }}>Bill Summary</Text>
+           </View>
 
-          {deliveryText && (
-            <View style={styles.addressRow}>
-              <MapPin size={16} color={PRIMARY} style={{ marginTop: 2, flexShrink: 0 }} />
-              <Text style={styles.addressText}>{deliveryText}</Text>
-            </View>
-          )}
-
-          {restaurant?.mobile && (
-             <View style={styles.restaurantContactBox}>
-                <View style={{ flex: 1 }}>
-                   <Text style={styles.restaurantTitle}>{restaurant.name || 'Restaurant'}</Text>
-                   <Text style={styles.restaurantSub}>Need help with your order?</Text>
+           <View style={{ gap: 12 }}>
+              <View style={styles.billRow}>
+                 <Text style={styles.opBillKey}>Item total</Text>
+                 <Text style={styles.opBillVal}>₹{Number(order.totalAmount || 0).toFixed(2)}</Text>
+              </View>
+              
+              {(order.taxAmount > 0 || order.cgstTotal > 0 || order.sgstTotal > 0) && (
+                <View style={styles.billRow}>
+                   <Text style={styles.opBillKey}>GST (govt. taxes)</Text>
+                   <Text style={styles.opBillVal}>₹{Number(order.taxAmount || ((order.cgstTotal||0) + (order.sgstTotal||0))).toFixed(2)}</Text>
                 </View>
-                <TouchableOpacity style={styles.callBadge} onPress={() => {/* Linking.openURL(`tel:${restaurant.mobile}`) */}}>
-                   <Phone size={14} color="#2563EB" />
-                   <Text style={{ color: '#2563EB', fontFamily: 'Inter-Bold', fontSize: 12 }}>Call</Text>
-                </TouchableOpacity>
-             </View>
-          )}
+              )}
+
+              {/* Delivery charges */}
+              <View style={styles.billRow}>
+                 <Text style={styles.opBillKey}>Delivery charges</Text>
+                 {Number(order.deliveryFee) > 0 ? (
+                    <Text style={styles.opBillVal}>₹{Number(order.deliveryFee).toFixed(2)}</Text>
+                 ) : (
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                       <Text style={[styles.opBillVal, { textDecorationLine: 'line-through', color: MUTED }]}>₹29.00</Text>
+                       <Text style={[styles.opBillVal, { color: '#2563EB' }]}>FREE</Text>
+                    </View>
+                 )}
+              </View>
+           </View>
+
+           <View style={[styles.divider, { borderStyle: 'dashed', borderWidth: 1, borderColor: BORDER, height: 1, backgroundColor: 'transparent', marginVertical: 16 }]} />
+
+           <View style={{ gap: 12, marginBottom: order.discountApplied > 0 ? 20 : 0 }}>
+              <View style={styles.billRow}>
+                 <Text style={{ fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR }}>Grand total</Text>
+                 <Text style={{ fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR }}>₹{(Number(order.totalAmount || 0) + Number(order.taxAmount || ((order.cgstTotal||0) + (order.sgstTotal||0))) + Number(order.deliveryFee || 0)).toFixed(2)}</Text>
+              </View>
+
+              {order.discountApplied > 0 && (
+                <View style={styles.billRow}>
+                   <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#2563EB' }}>Coupon applied{order.couponCode ? ` - ${order.couponCode}` : ''}</Text>
+                   <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: '#2563EB' }}>-₹{Number(order.discountApplied).toFixed(2)}</Text>
+                </View>
+              )}
+
+              <View style={styles.billRow}>
+                 <Text style={{ fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR }}>Paid</Text>
+                 <Text style={{ fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR }}>₹{Number(order.finalAmount || order.totalAmount || 0).toFixed(2)}</Text>
+              </View>
+           </View>
+
+           {order.discountApplied > 0 && (
+              <View style={{ backgroundColor: '#DBEAFE', marginHorizontal: -16, paddingVertical: 16, alignItems: 'center', position: 'relative', marginTop: 12 }}>
+                 {/* Wavy Cutout Top Edge */}
+                 <View style={{ width: width, flexDirection: 'row', position: 'absolute', top: -6, left: 0, zIndex: 10 }}>
+                    {Array.from({ length: 50 }).map((_, i) => (
+                       <View key={i} style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF', marginLeft: -3 }} />
+                    ))}
+                 </View>
+                 <Text style={{ fontFamily: 'Inter-Bold', fontSize: 13, color: '#1E3A8A', marginTop: 2 }}>🥳 You saved ₹{Number(order.discountApplied).toFixed(2)} on this order!</Text>
+              </View>
+           )}
         </Animated.View>
+
+        {/* ── 3. Customer Info Mega-Card ── */}
+        <Animated.View entering={FadeInDown.delay(350).springify()} style={[styles.card, { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }]}>
+           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              {order.user?.profileImage || authUser?.profileImage || order.user?.image || authUser?.image ? (
+                 <Image source={{ uri: order.user?.profileImage || authUser?.profileImage || order.user?.image || authUser?.image }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#E5E7EB' }} />
+              ) : (
+                 <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' }}>
+                    <User size={20} color="#4B5563" />
+                 </View>
+              )}
+              <View style={{ flex: 1 }}>
+                 <Text style={{ fontFamily: 'Inter-Bold', fontSize: 15, color: TEXT_COLOR }}>{order.user?.name || authUser?.name || "Customer"}</Text>
+                 <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: MUTED }}>{order.user?.phone || authUser?.mobile ? String(order.user?.phone || authUser?.mobile).replace(/.(?=.{4})/g, 'x') : "Phone hidden"}</Text>
+              </View>
+           </View>
+
+           <View style={[styles.divider, { marginVertical: 8 }]} />
+           <View style={styles.opInfoRow}>
+              <View style={styles.opInfoIconBox}><CreditCard size={18} color="#6B7280" strokeWidth={2.5} /></View>
+              <View style={{ flex: 1 }}>
+                 <Text style={styles.opInfoTitle}>Payment method</Text>
+                 <Text style={styles.opInfoSub}>Paid via: {order.paymentMethod || "Online"}</Text>
+              </View>
+           </View>
+
+           <View style={[styles.divider, { marginVertical: 8 }]} />
+           <View style={styles.opInfoRow}>
+              <View style={styles.opInfoIconBox}><Calendar size={18} color="#6B7280" strokeWidth={2.5} /></View>
+              <View style={{ flex: 1 }}>
+                 <Text style={styles.opInfoTitle}>Payment date</Text>
+                 <Text style={styles.opInfoSub}>{date}</Text>
+              </View>
+           </View>
+
+           {deliveryText && (
+              <>
+                 <View style={[styles.divider, { marginVertical: 8 }]} />
+                 <View style={styles.opInfoRow}>
+                    <View style={styles.opInfoIconBox}><MapPin size={18} color="#6B7280" strokeWidth={2.5} /></View>
+                    <View style={{ flex: 1 }}>
+                       <Text style={styles.opInfoTitle}>Delivery address</Text>
+                       <Text style={[styles.opInfoSub, { lineHeight: 18, marginTop: 2 }]} numberOfLines={3}>{deliveryText}</Text>
+                    </View>
+                 </View>
+              </>
+           )}
+        </Animated.View>
+
+        {/* ── FSSAI Badge ── */}
+        {restaurant?.fssaiLicense && (
+           <Animated.View entering={FadeInDown.delay(400).springify()} style={{ marginTop: 24, alignSelf: 'stretch', marginBottom: 24, alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <Image 
+                   source={require('../../assets/logo/fssai-logo-fssai-icon-free-free-vector-removebg-preview.png')}
+                   style={{ width: 60, height: 26, opacity: 0.6 }}
+                   contentFit="contain"
+                />
+                <Text style={{ fontFamily: 'Inter-Medium', fontSize: 13, color: '#9CA3AF' }}>License No. {restaurant.fssaiLicense}</Text>
+              </View>
+           </Animated.View>
+        )}
 
         {canCancel && cancelRemaining !== '' && (
           <Animated.View entering={FadeInDown.delay(350).springify()} style={{ paddingBottom: 40 }}>
@@ -773,6 +894,18 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: 'Inter-Black', fontSize: 20, color: TEXT_COLOR, marginTop: 16, marginBottom: 16 },
   btnSolid: { backgroundColor: PRIMARY, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   btnSolidText: { fontFamily: 'Inter-Bold', fontSize: 14, color: '#FFFFFF' },
+
+  // OP New Styles Additions
+  typeIcon: { width: 12, height: 12, borderRadius: 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  typeTriangle: { width: 0, height: 0, backgroundColor: 'transparent', borderStyle: 'solid', borderLeftWidth: 3.5, borderRightWidth: 3.5, borderBottomWidth: 6, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
+  typeDot: { width: 6, height: 6, borderRadius: 3 },
+  opCallBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', borderWidth: 1, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: {width: 0, height: 1}, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+  opBillKey: { fontFamily: 'Inter-Medium', fontSize: 14, color: '#4B5563' },
+  opBillVal: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: TEXT_COLOR },
+  opInfoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 4 },
+  opInfoIconBox: { width: 32, alignItems: 'center' },
+  opInfoTitle: { fontFamily: 'Inter-Bold', fontSize: 14, color: TEXT_COLOR },
+  opInfoSub: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#6B7280', marginTop: 2 },
 });
 
 export default OrderTrackingScreen;

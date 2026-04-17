@@ -122,16 +122,52 @@ export const reviewApi = {
 };
 
 export const chatApi = {
-  getOrCreateChat: () => api.post('/chat'),
-  getMessages: (chatId: string) => api.get(`/chat/${chatId}/messages`),
-  sendMessage: (chatId: string, data: any) => api.post(`/chat/${chatId}/messages`, data),
+  getOrCreateChat: () => api.get('/chat'),
+  createNewChat: () => api.post('/chat/create'),
+  sendMessage: (data: { text: string; images?: string[] }) => api.post('/chat/message', data),
+  markRead: () => api.put('/chat/read'),
 };
 
 export const uploadApi = {
-  uploadImage: (formData: FormData) =>
-    api.post('/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  uploadImage: async (formData: FormData) => {
+    let token: string | null = null;
+    try {
+      if (Platform.OS === 'web') {
+        token = localStorage.getItem('auth_token');
+      } else {
+        token = await SecureStore.getItemAsync('auth_token');
+      }
+    } catch (e) {}
+
+    const res = await fetch(`${BASE_URL}/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    
+    if (!res.ok) throw new Error('Upload format rejected by backend.');
+    const json = await res.json();
+    return { data: json };
+  },
+  uploadMultipleImages: async (files: { uri: string; name: string; type: string }[]) => {
+    const uploadPromises = files.map(async (file) => {
+      const formData = new FormData();
+      
+      if (Platform.OS === 'web') {
+        // Web requires actual Blob objects for form-data
+        const response = await fetch(file.uri);
+        const blob = await response.blob();
+        formData.append('image', blob, file.name);
+      } else {
+        // React Native requires duck-typed objects
+        formData.append('image', file as any);
+      }
+
+      return uploadApi.uploadImage(formData);
+    });
+    const responses = await Promise.all(uploadPromises);
+    return responses.map((res) => res.data.url as string);
+  },
 };
 
 export const vlogApi = {
