@@ -23,6 +23,26 @@ const TEXT_DARK = '#1A1A2E';
 const TEXT_MUTED = '#6B7280';
 const BORDER = '#F3F4F6';
 
+// ─── Menu Item ──────────────────────────────────
+const MenuItem = ({ icon, label, sub, onPress, idx }: any) => (
+  <Animated.View entering={FadeInDown.delay(Math.min(80 + idx * 30, 300)).duration(400)}>
+    <TouchableOpacity
+      style={styles.menuItem}
+      activeOpacity={0.7}
+      onPress={onPress}
+    >
+      <View style={styles.menuIconWrap}>
+        {icon}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        {sub && <Text style={styles.menuSub}>{sub}</Text>}
+      </View>
+      <ChevronRight size={18} color="#D1D5DB" />
+    </TouchableOpacity>
+  </Animated.View>
+);
+
 export default function ProfileScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -56,13 +76,20 @@ export default function ProfileScreen() {
   const displayImage = freshImage || user?.profileImage;
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout', 'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => { logout(); router.replace('/(auth)/welcome'); } },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to logout?')) {
+        logout();
+        router.replace('/(auth)/welcome');
+      }
+    } else {
+      Alert.alert(
+        'Logout', 'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Logout', style: 'destructive', onPress: () => { logout(); router.replace('/(auth)/welcome'); } },
+        ]
+      );
+    }
   };
 
   // ─── Guest State ────────────────────────────────
@@ -97,25 +124,7 @@ export default function ProfileScreen() {
     );
   }
 
-  // ─── Menu Item ──────────────────────────────────
-  const MenuItem = ({ icon, label, sub, onPress, idx }: any) => (
-    <Animated.View entering={FadeInDown.delay(80 + idx * 50).duration(400)}>
-      <TouchableOpacity
-        style={styles.menuItem}
-        activeOpacity={0.7}
-        onPress={onPress}
-      >
-        <View style={styles.menuIconWrap}>
-          {icon}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.menuLabel}>{label}</Text>
-          {sub && <Text style={styles.menuSub}>{sub}</Text>}
-        </View>
-        <ChevronRight size={18} color="#D1D5DB" />
-      </TouchableOpacity>
-    </Animated.View>
-  );
+ 
 
   return (
     <View style={styles.container}>
@@ -182,7 +191,15 @@ export default function ProfileScreen() {
         {/* ─── Settings ─── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SETTINGS</Text>
-          <MenuItem idx={4} icon={<Bell size={20} color="#F59E0B" />} label="Notifications" sub="Manage alerts & offers" onPress={() => {}} />
+          <MenuItem idx={4} icon={<Bell size={20} color="#F59E0B" />} label="Notifications" sub="Manage alerts & offers" onPress={() => {
+            if (Platform.OS === 'ios') {
+              Linking.openURL('app-settings:');
+            } else if (Platform.OS === 'android') {
+              Linking.openSettings();
+            } else {
+              Alert.alert('Notifications', 'Open your device settings to manage notification preferences.');
+            }
+          }} />
           <MenuItem idx={5} icon={<Shield size={20} color="#16a34a" />} label="Privacy & Security" sub="Password & permissions" onPress={() => {}} />
         </View>
 

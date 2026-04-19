@@ -59,6 +59,14 @@
       "expo-speech-recognition",
       "./plugins/withUPIQueries",
       "./plugins/withAndroidResolvedDependencies",
+      "./plugins/withCustomSounds",
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development",
+          "smallIcons": ["./assets/logo/restaurantLOGO.png"]
+        }
+      ],
       [
         "expo-notifications",
         {

@@ -57,6 +57,9 @@ export const authApi = {
 };
 
 export const userApi = {
+  getAll: () => api.get('/users'),
+  updateUser: (id: string, data: any) => api.put(`/users/${id}`, data),
+  deleteUser: (id: string) => api.delete(`/users/${id}`),
   getProfile: () => api.get('/users/profile'),
   updateProfile: (data: any) => api.put('/users/profile', data),
   getAddresses: () => api.get('/users/addresses'),
@@ -78,6 +81,7 @@ export const menuApi = {
   getCategoryById: (id: string) => api.get(`/categories/${id}`),
   getMenu: (params?: { type?: string; search?: string }) =>
     api.get('/menu', { params }),
+  getAdminMenu: () => api.get('/menu/admin'),
   getProductById: (id: string) => api.get(`/menu/${id}`),
 };
 
@@ -113,6 +117,9 @@ export const couponApi = {
   getAll: () => api.get('/coupons'),
   validateCoupon: (data: { code: string; cartValue: number }) =>
     api.post('/coupons/validate', data),
+  create: (data: any) => api.post('/coupons', data),
+  update: (id: string, data: any) => api.put(`/coupons/${id}`, data),
+  delete: (id: string) => api.delete(`/coupons/${id}`),
 };
 
 export const reviewApi = {
@@ -126,6 +133,40 @@ export const chatApi = {
   createNewChat: () => api.post('/chat/create'),
   sendMessage: (data: { text: string; images?: string[] }) => api.post('/chat/message', data),
   markRead: () => api.put('/chat/read'),
+  
+  // Admin endpoints
+  getAllChats: () => api.get('/chat/admin/all'),
+  getChatById: (chatId: string) => api.get(`/chat/admin/${chatId}`),
+  adminReply: (chatId: string, data: { text: string; images?: string[] }) => api.post(`/chat/admin/${chatId}/message`, data),
+  closeChat: (chatId: string) => api.put(`/chat/admin/${chatId}/close`),
+  deleteChat: (chatId: string) => api.delete(`/chat/admin/${chatId}`),
+};
+
+export const adminApi = {
+  getDashboardStats: () => api.get('/admin/dashboard'),
+  getAnalytics: (params?: { startDate?: string; endDate?: string }) => api.get("/admin/analytics", { params }),
+  
+  
+  // Orders
+  getOrders: () => api.get('/admin/orders'),
+  getOrdersByStatus: (status: string) => api.get(`/admin/orders/${status}`),
+  updateOrderStatus: (id: string, data: { status: string }) => 
+    api.put(`/admin/orders/${id}/status`, data),
+  cancelOrder: (id: string) => api.put(`/admin/orders/${id}/status`, { status: 'CANCELLED' }),
+  updatePaymentStatus: (id: string, data: { paymentStatus: string }) => 
+    api.put(`/admin/orders/${id}/payment-status`, data),
+  updatePreparationTime: (id: string, data: { preparationTime: number }) => 
+    api.put(`/admin/orders/${id}/preparation-time`, data),
+  processRefund: (id: string) => api.put(`/admin/orders/${id}/refund`),
+    
+  // Menu
+  addMenuItem: (data: any) => api.post('/menu', data),
+  updateMenuItem: (id: string, data: any) => api.put(`/menu/${id}`, data),
+  deleteMenuItem: (id: string) => api.delete(`/menu/${id}`),
+  toggleProductStock: (id: string) => api.put(`/menu/${id}/toggle-stock`),
+  
+  // Users
+  getUsers: () => api.get('/admin/users'),
 };
 
 export const uploadApi = {
@@ -154,12 +195,10 @@ export const uploadApi = {
       const formData = new FormData();
       
       if (Platform.OS === 'web') {
-        // Web requires actual Blob objects for form-data
         const response = await fetch(file.uri);
         const blob = await response.blob();
         formData.append('image', blob, file.name);
       } else {
-        // React Native requires duck-typed objects
         formData.append('image', file as any);
       }
 
@@ -174,6 +213,11 @@ export const vlogApi = {
   getAll: () => api.get('/vlogs'),
   incrementView: (id: string) => api.put(`/vlogs/${id}/view`),
   toggleLike: (id: string) => api.put(`/vlogs/${id}/like`),
+  // Admin routes
+  getAdminVlogs: () => api.get("/vlogs/admin"),
+  createVlog: (data: any) => api.post("/vlogs", data),
+  updateVlog: (id: string, data: any) => api.put(`/vlogs/${id}`, data),
+  deleteVlog: (id: string) => api.delete(`/vlogs/${id}`),
 };
 
 export default api;

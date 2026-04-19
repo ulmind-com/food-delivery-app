@@ -114,7 +114,7 @@ export default function OrdersScreen() {
     const imageUri = typeof firstItemPic === 'string' ? firstItemPic : firstItemPic?.url;
 
     return (
-      <Animated.View entering={FadeInDown.delay(index * 60).springify().damping(18)}>
+      <Animated.View entering={FadeInDown.delay(Math.min(index * 40, 200)).duration(400)}>
         <Pressable
           style={styles.orderCard}
           onPress={() => router.push(`/orders/${item._id || item.id}`)}

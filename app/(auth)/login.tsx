@@ -79,14 +79,19 @@ export default function LoginScreen() {
     try {
       const res = await authApi.login({ email: email.trim(), password });
       
-      // Backend returns { _id, name, email, token } flatly instead of { user: {}, token: '' }
+      // Backend returns { _id, name, email, token, role }
       const { token, ...userData } = res.data;
       
       setToken(token);
       setUser(userData);
       
-      // Navigate to tabs correctly after setting auth state
-      router.replace('/(tabs)');
+      // Admin vs User Routing
+      const role = (userData.user?.role || userData.role || '').toLowerCase();
+      if (role === 'admin') {
+        router.replace('/role-selection');
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || 'Invalid credentials');
     } finally {

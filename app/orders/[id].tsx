@@ -18,11 +18,12 @@ import Animated, {
   withSpring
 } from 'react-native-reanimated';
 import LottieView from 'lottie-react-native';
-import { orderApi, restaurantApi } from '../../services/api';
+import { orderApi, restaurantApi, userApi } from '../../services/api';
 import { socket } from '../../services/socket';
 import MapComponent from '../../components/MapComponent';
 import { useWeather } from '../../hooks/useWeather';
 import { useAuthStore } from '../../store/useAuthStore';
+import { resolveImageURL } from '../../lib/image-utils';
 
 const { width, height } = Dimensions.get('window');
 
@@ -118,7 +119,8 @@ function OrderTrackingScreen() {
   const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[]>([]);
 
   // Authenticated Used Backup
-  const { user: authUser } = useAuthStore();
+  const authUser = useAuthStore((s) => s.user);
+  const [freshImage, setFreshImage] = useState<string | null>(null);
 
   // Sockets
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
@@ -141,6 +143,16 @@ function OrderTrackingScreen() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (authUser) {
+      userApi.getProfile()
+        .then(res => {
+           const profile = res.data?.user || res.data;
+           if (profile?.profileImage) setFreshImage(profile.profileImage);
+        }).catch(() => {});
+    }
+  }, [authUser]);
 
   useEffect(() => {
     if (id) fetchOrder();
@@ -327,6 +339,11 @@ function OrderTrackingScreen() {
   const currentPrepTime = Number(rawPrepTime) || 0;
 
   const date = new Date(order.createdAt).toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+  const paymentTime = order.paymentMethod === 'COD' ? (order.updatedAt || order.createdAt) : order.createdAt;
+  const paymentDateFormatted = new Date(paymentTime).toLocaleDateString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 
@@ -637,7 +654,7 @@ function OrderTrackingScreen() {
               )}
 
               <View style={styles.billRow}>
-                 <Text style={{ fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR }}>Paid</Text>
+                 <Text style={{ fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR }}>{order.paymentStatus === 'PAID' ? 'Amount paid' : 'To pay'}</Text>
                  <Text style={{ fontFamily: 'Inter-Black', fontSize: 15, color: TEXT_COLOR }}>₹{Number(order.finalAmount || order.totalAmount || 0).toFixed(2)}</Text>
               </View>
            </View>
@@ -655,19 +672,21 @@ function OrderTrackingScreen() {
            )}
         </Animated.View>
 
-        {/* ── 3. Customer Info Mega-Card ── */}
+         {/* ── 3. Customer Info Mega-Card ── */}
         <Animated.View entering={FadeInDown.delay(350).springify()} style={[styles.card, { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }]}>
            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              {order.user?.profileImage || authUser?.profileImage || order.user?.image || authUser?.image ? (
-                 <Image source={{ uri: order.user?.profileImage || authUser?.profileImage || order.user?.image || authUser?.image }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#E5E7EB' }} />
+              {order.customer?.profileImage || freshImage || authUser?.profileImage || order.customer?.image ? (
+                 <Image source={{ uri: resolveImageURL(order.customer?.profileImage || freshImage || authUser?.profileImage || order.customer?.image) }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#E5E7EB' }} contentFit="cover" />
               ) : (
-                 <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB' }}>
-                    <User size={20} color="#4B5563" />
+                 <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FED7AA' }}>
+                    <Text style={{ fontFamily: 'Inter-Black', fontSize: 20, color: '#EA580C' }}>
+                       {(order.customer?.name || authUser?.name || '?').charAt(0).toUpperCase()}
+                    </Text>
                  </View>
               )}
               <View style={{ flex: 1 }}>
-                 <Text style={{ fontFamily: 'Inter-Bold', fontSize: 15, color: TEXT_COLOR }}>{order.user?.name || authUser?.name || "Customer"}</Text>
-                 <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: MUTED }}>{order.user?.phone || authUser?.mobile ? String(order.user?.phone || authUser?.mobile).replace(/.(?=.{4})/g, 'x') : "Phone hidden"}</Text>
+                 <Text style={{ fontFamily: 'Inter-Bold', fontSize: 15, color: TEXT_COLOR }}>{order.customer?.name || authUser?.name || "Customer"}</Text>
+                 <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: MUTED }}>{order.customer?.mobile || order.customer?.phone || authUser?.mobile ? String(order.customer?.mobile || order.customer?.phone || authUser?.mobile).replace(/.(?=.{4})/g, 'x') : "Phone hidden"}</Text>
               </View>
            </View>
 
@@ -676,7 +695,7 @@ function OrderTrackingScreen() {
               <View style={styles.opInfoIconBox}><CreditCard size={18} color="#6B7280" strokeWidth={2.5} /></View>
               <View style={{ flex: 1 }}>
                  <Text style={styles.opInfoTitle}>Payment method</Text>
-                 <Text style={styles.opInfoSub}>Paid via: {order.paymentMethod || "Online"}</Text>
+                 <Text style={styles.opInfoSub}>{order.paymentStatus === 'PAID' ? 'Paid via: ' : 'To pay via: '}{order.paymentMethod || "Online"}</Text>
               </View>
            </View>
 
@@ -684,8 +703,8 @@ function OrderTrackingScreen() {
            <View style={styles.opInfoRow}>
               <View style={styles.opInfoIconBox}><Calendar size={18} color="#6B7280" strokeWidth={2.5} /></View>
               <View style={{ flex: 1 }}>
-                 <Text style={styles.opInfoTitle}>Payment date</Text>
-                 <Text style={styles.opInfoSub}>{date}</Text>
+                 <Text style={styles.opInfoTitle}>{order.paymentStatus === 'PAID' ? 'Payment date' : 'Order placed on'}</Text>
+                 <Text style={styles.opInfoSub}>{order.paymentStatus === 'PAID' ? paymentDateFormatted : date}</Text>
               </View>
            </View>
 

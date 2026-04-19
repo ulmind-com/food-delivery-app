@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Dimensions, Text } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { StyleSheet, Dimensions, Text, Platform } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Animated, { FadeOut, FadeInDown, FadeIn, ZoomIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { Audio } from 'expo-av';
 import { StatusBar } from 'expo-status-bar';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import {
   useFonts,
@@ -25,16 +25,31 @@ import { useRestaurantStore } from '../store/useRestaurantStore';
 import { useCartStore } from '../store/useCartStore';
 import { restaurantApi } from '../services/api';
 
+// Initialize OneSignal (Native only — module crashes on Web)
+let OneSignal: any = null;
+if (Platform.OS !== 'web') {
+  const OS = require('react-native-onesignal');
+  OneSignal = OS.OneSignal;
+  OneSignal.Debug.setLogLevel(OS.LogLevel.Verbose);
+  OneSignal.initialize(process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID || "e3041dfd-ab6b-4b43-ad07-649a313e6e7d");
+  OneSignal.Notifications.requestPermission(true);
+}
+
 SplashScreen.preventAutoHideAsync();
 const { width } = Dimensions.get('window');
 
 function RootLayoutInner() {
+  const router = useRouter();
+  const segments = useSegments();
   const loadFromStorage = useAuthStore((s) => s.loadFromStorage);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const user = useAuthStore((s) => s.user);
   const setRestaurant = useRestaurantStore((s) => s.setRestaurant);
   const setLoading = useRestaurantStore((s) => s.setLoading);
   const fetchCart = useCartStore((s) => s.fetchCart);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const hasRedirected = useRef(false);
 
   const [fontsLoaded] = useFonts({
     'Inter': Inter_400Regular,
@@ -53,12 +68,38 @@ function RootLayoutInner() {
       .catch(() => setLoading(false));
   }, []);
 
-  // Fetch cart when user is authenticated
+  // Fetch cart and initialize push alias when user is authenticated
   useEffect(() => {
     if (isAuthenticated()) {
       fetchCart();
+      if (user?._id && OneSignal) {
+        OneSignal.login(String(user._id));
+      }
+    } else {
+      if (OneSignal) OneSignal.logout();
     }
-  }, [isAuthenticated()]);
+  }, [isAuthenticated(), user?._id]);
+
+  // ── Critical: Role-based routing on startup ──
+  useEffect(() => {
+    if (authLoading || !fontsLoaded || hasRedirected.current) return;
+
+    // Only redirect once on startup
+    hasRedirected.current = true;
+
+    // Small delay to let expo-router settle
+    const timer = setTimeout(() => {
+      if (isAuthenticated() && isAdmin()) {
+        // Admin user → role selection (choose admin dashboard or customer view)
+        router.replace('/role-selection');
+      } else {
+        // Not logged in OR regular user → food feed (tabs)
+        router.replace('/(tabs)');
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [authLoading, fontsLoaded]);
 
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
 
@@ -137,8 +178,10 @@ function RootLayoutInner() {
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(admin)" options={{ headerShown: false, animation: 'fade' }} />
+        <Stack.Screen name="role-selection" options={{ animation: 'fade' }} />
         <Stack.Screen name="checkout" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="cart" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="addresses" options={{ animation: 'slide_from_right' }} />
@@ -150,8 +193,13 @@ function RootLayoutInner() {
 }
 
 export default function RootLayout() {
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    document.body.style.overflowX = 'hidden';
+    document.documentElement.style.overflowX = 'hidden';
+    document.body.style.overscrollBehaviorX = 'none';
+  }
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, overflow: 'hidden', maxWidth: '100%' }}>
       <ThemeProvider>
         <RootLayoutInner />
       </ThemeProvider>
