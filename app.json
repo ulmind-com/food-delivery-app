@@ -64,7 +64,9 @@
         "onesignal-expo-plugin",
         {
           "mode": "development",
-          "smallIcons": ["./assets/logo/restaurantLOGO.png"]
+          "smallIcons": [
+            "./assets/logo/restaurantLOGO.png"
+          ]
         }
       ],
       [
@@ -81,9 +83,26 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "85d4534d-3830-428e-a5b4-288491d68b29"
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "OneSignalNotificationServiceExtension",
+                  "bundleIdentifier": "com.foodie.delivery.OneSignalNotificationServiceExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.foodie.delivery.onesignal"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "1378ba39-f351-4035-849d-255232bede22"
       }
     },
-    "owner": "love.ble6072"
+    "owner": "loveble679"
   }
 }
