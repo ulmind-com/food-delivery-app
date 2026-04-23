@@ -996,7 +996,7 @@ export default function HomeScreen() {
           {Array.from({ length: 12 }).map((_, i) => (
             <Animated.Text
               key={`float-${i}`}
-              entering={FadeInDown.delay(i * 60).springify().damping(12)}
+              entering={FadeInDown.delay(i * 60).duration(500)}
               style={{
                 position: 'absolute',
                 fontSize: Math.random() * 20 + 34,
@@ -1013,12 +1013,12 @@ export default function HomeScreen() {
             </Animated.Text>
           ))}
 
-          <Animated.View entering={FadeInDown.delay(100).springify().damping(14)} style={styles.vegSplashTextWrap}>
+          <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.vegSplashTextWrap}>
             <Text style={[styles.vegSplashTextTitle, { color: '#FFFFFF' }]}>{isVegOnly ? "VEG" : "REGULAR"}</Text>
             <Text style={[styles.vegSplashTextTitle, { color: '#FFFFFF' }]}>MODE</Text>
           </Animated.View>
 
-          <Animated.View entering={ZoomIn.delay(300).springify().damping(14)} style={[styles.vegSplashHugeToggle, { backgroundColor: isVegOnly ? '#14532D' : '#450A0A' }]}>
+          <Animated.View entering={ZoomIn.delay(200).duration(400)} style={[styles.vegSplashHugeToggle, { backgroundColor: isVegOnly ? '#14532D' : '#450A0A' }]}>
             <Animated.View 
                style={[
                  styles.vegSplashHugeKnob, 

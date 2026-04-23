@@ -7,7 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   ArrowLeft, CheckCircle, Package, MapPin, CreditCard, 
   Clock, XCircle, ChevronRight, ShoppingBag, ChefHat, Bike, 
-  MessageCircle, Phone, RefreshCw, CloudRain, Copy, Receipt, Calendar, User, MessageSquareText
+  MessageCircle, Phone, RefreshCw, CloudRain, Copy, Receipt, Calendar, User, MessageSquareText, Check
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
@@ -480,15 +480,8 @@ function OrderTrackingScreen() {
           )}
         </Animated.View>
 
-        {/* ── Order Status Stepper ── */}
-        <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-             <View style={styles.cardTitleWrap}>
-                <Package size={16} color={PRIMARY} />
-                <Text style={styles.cardTitle}>Order Progress</Text>
-             </View>
-          </View>
-          
+        {/* ── Order Status Stepper (BLINKIT STYLE HORIZONTAL) ── */}
+        <Animated.View entering={FadeInDown.delay(200).springify()} style={[styles.card, { paddingVertical: 24, paddingHorizontal: 20 }]}>
           {isCancelled ? (
             <View style={styles.cancelledBox}>
               <View style={styles.cancelIconRow}>
@@ -500,36 +493,52 @@ function OrderTrackingScreen() {
               </View>
             </View>
           ) : (
-            <View style={styles.stepperContainer}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative' }}>
+              {/* Background Grey Line */}
+              <View style={{ position: 'absolute', top: 18, left: 18, right: 18, height: 3, backgroundColor: '#E5E7EB', zIndex: 1, borderRadius: 2 }} />
+              
+              {/* Active Green Line */}
+              <View style={{ position: 'absolute', top: 18, left: 18, right: 18, height: 3, backgroundColor: 'transparent', zIndex: 2, flexDirection: 'row' }}>
+                 <View style={{ flex: currentStepIdx / (STATUS_STEPS.length - 1), backgroundColor: '#16A34A', borderRadius: 2 }} />
+              </View>
+
               {STATUS_STEPS.map((step, idx) => {
                  const stepCfg = STATUS_CONFIG[step];
+                 // Small label hacks for horizontal fit
+                 let shortLabel = stepCfg.label;
+                 if (step === 'ACCEPTED') shortLabel = 'Confirmed';
+                 if (step === 'PREPARING') shortLabel = 'Preparing';
+                 if (step === 'OUT_FOR_DELIVERY') shortLabel = 'On the Way';
+
                  const isStepActive = idx <= currentStepIdx;
                  const isStepCurrent = idx === currentStepIdx;
                  const StepIcon = stepCfg.icon;
 
                  return (
-                   <View key={step} style={styles.stepRow}>
-                     <View style={styles.stepIconColumn}>
-                       <View style={[
-                         styles.stepIconDot, 
-                         isStepActive ? { backgroundColor: stepCfg.bg } : { backgroundColor: '#F3F4F6' },
-                         isStepCurrent && { borderWidth: 4, borderColor: `${stepCfg.bg}30` }
-                        ]}>
-                         <StepIcon size={18} color={isStepActive ? '#FFFFFF' : '#9CA3AF'} />
-                       </View>
-                       {idx < STATUS_STEPS.length - 1 && (
-                         <View style={[styles.stepLine, isStepActive && idx < currentStepIdx ? { backgroundColor: stepCfg.bg } : { backgroundColor: '#F3F4F6' }]} />
-                       )}
+                   <View key={step} style={{ alignItems: 'center', width: 64, zIndex: 3 }}>
+                     {/* The Dot / Icon Box */}
+                     <View style={[
+                         { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#E5E7EB' },
+                         isStepActive && { borderColor: '#16A34A', backgroundColor: '#16A34A' },
+                         isStepCurrent && { shadowColor: '#16A34A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5, transform: [{ scale: 1.15 }], backgroundColor: '#FFFFFF', borderColor: '#16A34A' }
+                     ]}>
+                         {isStepCurrent ? (
+                             <StepIcon size={18} color="#16A34A" />
+                         ) : isStepActive ? (
+                             <Check size={18} color="#FFFFFF" strokeWidth={3} />
+                         ) : (
+                             <StepIcon size={16} color="#D1D5DB" />
+                         )}
                      </View>
-                     <View style={styles.stepTextColumn}>
-                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                         <Text style={[styles.stepLabel, isStepActive ? { color: TEXT_COLOR } : { color: MUTED }]}>
-                           {stepCfg.label}
-                         </Text>
-                         {isStepCurrent && <Text style={{ fontSize: 16 }}>{stepCfg.emoji}</Text>}
-                       </View>
-                       {isStepCurrent && <Text style={styles.stepDesc}>{stepCfg.desc}</Text>}
-                     </View>
+                     
+                     {/* The Label under the dot */}
+                     <Text style={[
+                         { fontFamily: 'Inter-Medium', fontSize: 11, color: '#9CA3AF', marginTop: 10, textAlign: 'center' },
+                         isStepActive && { color: '#4B5563' },
+                         isStepCurrent && { fontFamily: 'Inter-Bold', color: '#111827' }
+                     ]}>
+                         {shortLabel}
+                     </Text>
                    </View>
                  )
               })}
