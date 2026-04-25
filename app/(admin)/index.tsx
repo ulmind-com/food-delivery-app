@@ -50,7 +50,7 @@ export default function AdminDashboard() {
   };
 
   const ModernMetricCard = ({ title, value, sub, Icon, colors, onAction, delay }: any) => (
-    <Animated.View entering={FadeInDown.delay(delay).springify().damping(16)} style={styles.metricCardBox}>
+    <Animated.View entering={FadeInDown.delay(delay).duration(400)} style={styles.metricCardBox}>
       <View style={styles.metricCardInner}>
         <View style={{ flex: 1 }}>
           <Text style={styles.metricLabel}>{title}</Text>
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
 
         {/* Top Selling Items (Horizontal Scroll) */}
         {analytics?.topItems && analytics?.topItems.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(500).springify().damping(16)}>
+          <Animated.View entering={FadeInDown.delay(500).duration(400)}>
              <Text style={styles.sectionHeader}>Top Selling Items</Text>
              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}>
                 {analytics.topItems.map((item: any, idx: number) => (
@@ -155,7 +155,7 @@ export default function AdminDashboard() {
 
         {/* Status Distribution */}
         {analytics?.statusBreakdown && Object.keys(analytics.statusBreakdown).length > 0 && (
-          <Animated.View entering={FadeInDown.delay(600).springify().damping(16)} style={{ paddingHorizontal: 20 }}>
+          <Animated.View entering={FadeInDown.delay(600).duration(400)} style={{ paddingHorizontal: 20 }}>
              <Text style={styles.sectionHeader}>Activity Breakdown</Text>
              <View style={styles.breakdownCard}>
                 {Object.entries(analytics.statusBreakdown).map(([status, count]: [string, any], idx) => (

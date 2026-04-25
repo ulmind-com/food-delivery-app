@@ -79,14 +79,14 @@ export default function ProfileScreen() {
     if (Platform.OS === 'web') {
       if (window.confirm('Are you sure you want to logout?')) {
         logout();
-        router.replace('/(auth)/welcome');
+        router.replace('/(auth)/login');
       }
     } else {
       Alert.alert(
         'Logout', 'Are you sure you want to logout?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Logout', style: 'destructive', onPress: () => { logout(); router.replace('/(auth)/welcome'); } },
+          { text: 'Logout', style: 'destructive', onPress: () => { logout(); router.replace('/(auth)/login'); } },
         ]
       );
     }
@@ -218,7 +218,7 @@ export default function ProfileScreen() {
 
         {/* ─── Restaurant / Outlet Info ─── */}
         {restaurant && (
-          <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.restaurantCardWrap}>
+          <Animated.View entering={FadeInDown.delay(500).duration(400)} style={styles.restaurantCardWrap}>
             <View style={styles.resCardTop}>
               <Text style={styles.resName}>{restaurant.name || 'Haldia Cloud Kitchen'}</Text>
               <Text style={styles.resAddress}>{restaurant.address || 'Haldia, West Bengal'}</Text>

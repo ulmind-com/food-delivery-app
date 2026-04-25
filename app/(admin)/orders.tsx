@@ -189,7 +189,7 @@ export default function AdminOrders() {
                              statusKey === 'DELIVERED' ? SUCCESS_GRADIENT : DANGER_GRADIENT;
 
     return (
-      <Animated.View entering={FadeInDown.delay(Math.min(index * 30, 300)).springify().damping(16)} style={styles.modernCard}>
+      <Animated.View entering={FadeInDown.delay(Math.min(index * 30, 300)).duration(400)} style={styles.modernCard}>
         {/* Top Header */}
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
@@ -253,7 +253,7 @@ export default function AdminOrders() {
   };
 
   const renderRefundCard = ({ item: order, index }: { item: any; index: number }) => (
-    <Animated.View entering={FadeInDown.delay(index * 30).springify().damping(16)} style={styles.modernCard}>
+    <Animated.View entering={FadeInDown.delay(index * 30).duration(400)} style={styles.modernCard}>
       <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <View style={[styles.iconBox, { backgroundColor: '#FFE4E6' }]}><ArrowLeftRight size={16} color="#E11D48" /></View>

@@ -89,7 +89,7 @@ export default function AdminCouponsScreen() {
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
     return (
-      <Animated.View entering={FadeInDown.delay(index * 20).springify().damping(16)} style={styles.card}>
+      <Animated.View entering={FadeInDown.delay(index * 20).duration(400)} style={styles.card}>
         <View style={styles.cardHeader}>
            <View style={styles.iconBox}>
               <Tag size={20} color={ACCENT} />

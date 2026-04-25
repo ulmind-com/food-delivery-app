@@ -61,7 +61,7 @@ const ShimmerBlock = ({ w, h, radius = 8, style }: { w: number | string; h: numb
 };
 
 const SkeletonCard = ({ index }: { index: number }) => (
-  <Animated.View entering={FadeInDown.delay(index * 100).springify()} style={skeletonStyles.card}>
+  <Animated.View entering={FadeInDown.delay(index * 100).duration(400)} style={skeletonStyles.card}>
     <View style={skeletonStyles.topRow}>
       <ShimmerBlock w={44} h={44} radius={22} />
       <View style={{ flex: 1, marginLeft: 14, gap: 8 }}>
@@ -200,7 +200,7 @@ export default function AddressesScreen() {
     ].filter(Boolean).join(', ');
 
     return (
-      <Animated.View entering={FadeInDown.delay(index * 80).springify()}>
+      <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
         <View
           style={[
             styles.addressCard,

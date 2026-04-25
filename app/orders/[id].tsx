@@ -7,7 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   ArrowLeft, CheckCircle, Package, MapPin, CreditCard, 
   Clock, XCircle, ChevronRight, ShoppingBag, ChefHat, Bike, 
-  MessageCircle, Phone, RefreshCw, CloudRain, Copy, Receipt, Calendar, User, MessageSquareText, Check
+  MessageCircle, Phone, RefreshCw, CloudRain, Copy, Receipt, Calendar, User, MessageSquareText, Check, HeartHandshake
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
@@ -230,6 +230,14 @@ function OrderTrackingScreen() {
   // Disable weather theme if order is DELIVERED or CANCELLED
   const isRaining = dynamicIsRaining && isActive;
 
+  // Hospital Delivery Check
+  const checkHospitalAddress = () => {
+    if (!order?.deliveryAddress && !order?.address) return false;
+    const searchString = `${order?.deliveryAddress?.addressLine1 || ''} ${order?.deliveryAddress?.addressLine2 || ''} ${order?.address || ''} ${order?.deliveryAddress?.city || ''}`.toLowerCase();
+    return searchString.includes('hospital') || searchString.includes('clinic') || searchString.includes('nursing') || searchString.includes('medical') || searchString.includes('doctor');
+  };
+  const isHospital = checkHospitalAddress();
+
   // ─── Raindrop Re-render Memoization ───
   const rainDropsConfig = React.useMemo(() => {
     return Array.from({ length: 35 }).map(() => ({
@@ -268,7 +276,7 @@ function OrderTrackingScreen() {
           }
       } catch {}
       
-      setRouteCoords([{latitude: restaurantLat, longitude: restaurantLng}, {latitude: userLat, longitude: userLng}]);
+      setRouteCoords([{latitude: restaurantLat, longitude: restaurantLng}, {latitude: userLat, longitude: userLat}]);
     };
     fetchRoute();
   }, [showMap, restaurantLat, restaurantLng, userLat, userLng]);
@@ -393,7 +401,7 @@ function OrderTrackingScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
         {/* ── Hero Status + Map (Floating Premium Card) ── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.heroMapWrap, { position: 'relative', overflow: 'hidden', marginHorizontal: 16, marginTop: 16, borderRadius: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, borderWidth: 1, borderColor: '#F3F4F6' }]}>
+        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={[styles.heroMapWrap, { position: 'relative', overflow: 'hidden', marginHorizontal: 16, marginTop: 16, borderRadius: 24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, borderWidth: 1, borderColor: '#F3F4F6' }]}>
 
           {/* Status Section */}
           <LinearGradient 
@@ -480,8 +488,21 @@ function OrderTrackingScreen() {
           )}
         </Animated.View>
 
+        {/* ── Hospital Priority Banner ── */}
+        {isHospital && !isCancelled && status !== 'DELIVERED' && (
+          <Animated.View entering={FadeInDown.delay(150).duration(400)} style={styles.hospitalBanner}>
+            <View style={styles.hospitalIconWrap}>
+               <HeartHandshake size={24} color="#DC2626" />
+            </View>
+            <View style={styles.hospitalTextWrap}>
+               <Text style={styles.hospitalBannerTitle}>Your order will be delivered first</Text>
+               <Text style={styles.hospitalBannerSub}>We noticed your order is from a hospital. Sending warm wishes to those who need and give care ❤️</Text>
+            </View>
+          </Animated.View>
+        )}
+
         {/* ── Order Status Stepper (BLINKIT STYLE HORIZONTAL) ── */}
-        <Animated.View entering={FadeInDown.delay(200).springify()} style={[styles.card, { paddingVertical: 24, paddingHorizontal: 20 }]}>
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={[styles.card, { paddingVertical: 24, paddingHorizontal: 20 }]}>
           {isCancelled ? (
             <View style={styles.cancelledBox}>
               <View style={styles.cancelIconRow}>
@@ -549,7 +570,7 @@ function OrderTrackingScreen() {
         {/* OP DETAILS ENHANCEMENT BEGINS HERE */}
         
         {/* ── 1. Restaurant & Items Layout ── */}
-        <Animated.View entering={FadeInDown.delay(250).springify()} style={[styles.card, { paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' }]}>
+        <Animated.View entering={FadeInDown.delay(250).duration(400)} style={[styles.card, { paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' }]}>
            
            {/* Restaurant Header Block */}
            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#FFFFFF' }}>
@@ -584,7 +605,7 @@ function OrderTrackingScreen() {
                                     item.type?.toLowerCase().includes('non-veg') ||
                                     item.isVeg === false || 
                                     item.product?.isVeg === false || 
-                                    item.menuItem?.isVeg === false ||
+                                    item.menuItem?.isVeg === false || 
                                     /chicken|mutton|beef|pork|fish|egg|prawn/i.test(rawName);
 
                    return (
@@ -612,7 +633,7 @@ function OrderTrackingScreen() {
         </Animated.View>
 
         {/* ── 2. Premium Bill Summary Card ── */}
-        <Animated.View entering={FadeInDown.delay(300).springify()} style={[styles.card, { paddingBottom: order.discountApplied > 0 ? 0 : 16, overflow: 'hidden' }]}>
+        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={[styles.card, { paddingBottom: order.discountApplied > 0 ? 0 : 16, overflow: 'hidden' }]}>
            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <View style={{ backgroundColor: '#F3F4F6', padding: 8, borderRadius: 12 }}>
                  <Receipt size={18} color="#4B5563" />
@@ -682,7 +703,7 @@ function OrderTrackingScreen() {
         </Animated.View>
 
          {/* ── 3. Customer Info Mega-Card ── */}
-        <Animated.View entering={FadeInDown.delay(350).springify()} style={[styles.card, { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }]}>
+        <Animated.View entering={FadeInDown.delay(350).duration(400)} style={[styles.card, { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }]}>
            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               {order.customer?.profileImage || freshImage || authUser?.profileImage || order.customer?.image ? (
                  <Image source={{ uri: resolveImageURL(order.customer?.profileImage || freshImage || authUser?.profileImage || order.customer?.image) }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#E5E7EB' }} contentFit="cover" />
@@ -729,11 +750,33 @@ function OrderTrackingScreen() {
                  </View>
               </>
            )}
+
+           {canCancel && cancelRemaining !== '' && (
+              <>
+                 <View style={[styles.divider, { marginVertical: 8 }]} />
+                 <TouchableOpacity 
+                   style={[styles.opInfoRow, { paddingVertical: 8 }]}
+                   onPress={() => setShowCancelModal(true)}
+                 >
+                    <View style={styles.opInfoIconBox}><XCircle size={20} color="#DC2626" strokeWidth={2.5} /></View>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                       <View>
+                          <Text style={[styles.opInfoTitle, { color: '#DC2626' }]}>Cancel Order</Text>
+                          <Text style={[styles.opInfoSub, { color: '#EF4444' }]}>Available for a limited time</Text>
+                       </View>
+                       <View style={styles.cancelTimerBadge}>
+                         <Clock size={12} color="#DC2626" />
+                         <Text style={styles.cancelTimerText}>{cancelRemaining}</Text>
+                       </View>
+                    </View>
+                 </TouchableOpacity>
+              </>
+           )}
         </Animated.View>
 
         {/* ── FSSAI Badge ── */}
         {restaurant?.fssaiLicense && (
-           <Animated.View entering={FadeInDown.delay(400).springify()} style={{ marginTop: 24, alignSelf: 'stretch', marginBottom: 24, alignItems: 'center' }}>
+           <Animated.View entering={FadeInDown.delay(400).duration(400)} style={{ marginTop: 24, alignSelf: 'stretch', marginBottom: 24, alignItems: 'center' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
                 <Image 
                    source={require('../../assets/logo/fssai-logo-fssai-icon-free-free-vector-removebg-preview.png')}
@@ -745,28 +788,13 @@ function OrderTrackingScreen() {
            </Animated.View>
         )}
 
-        {canCancel && cancelRemaining !== '' && (
-          <Animated.View entering={FadeInDown.delay(350).springify()} style={{ paddingBottom: 40 }}>
-            <TouchableOpacity 
-              style={styles.cancelOuterBtn}
-              onPress={() => setShowCancelModal(true)}
-            >
-              <XCircle size={18} color="#DC2626" />
-              <Text style={styles.cancelOuterText}>Cancel Order</Text>
-              <View style={styles.cancelTimerBadge}>
-                <Clock size={12} color="#DC2626" />
-                <Text style={styles.cancelTimerText}>{cancelRemaining}</Text>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-        )}
       </ScrollView>
 
 
       {/* Cancel Modal */}
       {showCancelModal && (
         <Animated.View entering={FadeIn.duration(200)} style={styles.modalOverlay}>
-          <Animated.View entering={SlideInDown.duration(300).springify()} style={styles.modalContent}>
+          <Animated.View entering={SlideInDown.duration(300).duration(400)} style={styles.modalContent}>
              <Text style={styles.modalTitle}>Cancel Order?</Text>
              <Text style={styles.modalSub}>Please tell us why you want to cancel this order. This helps us improve our service.</Text>
              
@@ -934,6 +962,23 @@ const styles = StyleSheet.create({
   opInfoIconBox: { width: 32, alignItems: 'center' },
   opInfoTitle: { fontFamily: 'Inter-Bold', fontSize: 14, color: TEXT_COLOR },
   opInfoSub: { fontFamily: 'Inter-Medium', fontSize: 13, color: '#6B7280', marginTop: 2 },
+
+  // Hospital Banner Styles
+  hospitalBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
+    marginHorizontal: 16, marginBottom: 16, padding: 16,
+    backgroundColor: '#FFFFFF', borderRadius: 20,
+    borderWidth: 1.5, borderColor: '#FCA5A5',
+    shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 4,
+  },
+  hospitalIconWrap: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEF2F2',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#FECACA'
+  },
+  hospitalTextWrap: { flex: 1, paddingTop: 2 },
+  hospitalBannerTitle: { fontFamily: 'Inter-Black', fontSize: 14, color: '#111827', marginBottom: 4 },
+  hospitalBannerSub: { fontFamily: 'Inter-Medium', fontSize: 12, color: '#4B5563', lineHeight: 18 },
 });
 
 export default OrderTrackingScreen;

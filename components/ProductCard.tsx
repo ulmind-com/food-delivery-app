@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Plus, Minus, Zap } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useCartStore } from '../store/useCartStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useTheme, Colors } from '../constants/ThemeContext';
@@ -57,6 +58,7 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
     if (!isAuthenticated()) {
       return router.push('/(auth)/login');
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     addItem({
       _id: item._id,
       name: item.name,
@@ -70,13 +72,19 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
   const handleIncrement = (e?: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
     if (!isAuthenticated()) return router.push('/(auth)/login');
-    if (cartItem && !isSyncing) incrementItem(cartItem.itemId);
+    if (cartItem && !isSyncing) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        incrementItem(cartItem.itemId);
+    }
   };
 
   const handleDecrement = (e?: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
     if (!isAuthenticated()) return router.push('/(auth)/login');
-    if (cartItem && !isSyncing) decrementItem(cartItem.itemId);
+    if (cartItem && !isSyncing) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        decrementItem(cartItem.itemId);
+    }
   };
 
   const hasDiscount = item.hasDiscount;

@@ -25,7 +25,7 @@ export default function RoleSelectionScreen() {
       {/* Background Graphic overlay */}
       <Animated.View entering={FadeIn.duration(800)} style={styles.bgOverlay} />
 
-      <Animated.View entering={FadeInDown.delay(100).springify().damping(14)} style={styles.header}>
+      <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.header}>
         <Text style={styles.title}>Welcome back,</Text>
         <Text style={styles.name}>{user?.name?.split(' ')[0] || 'Admin'}</Text>
         <Text style={styles.subtitle}>Choose your workspace for this session</Text>
@@ -33,7 +33,7 @@ export default function RoleSelectionScreen() {
 
       <View style={styles.cardsContainer}>
         {/* Admin Card */}
-        <Animated.View entering={FadeInDown.delay(200).springify().damping(14)}>
+        <Animated.View entering={FadeInDown.delay(200).duration(400)}>
           <TouchableOpacity 
             style={[styles.card, styles.adminCard]} 
             activeOpacity={0.8}
@@ -48,7 +48,7 @@ export default function RoleSelectionScreen() {
         </Animated.View>
 
         {/* User Card */}
-        <Animated.View entering={FadeInDown.delay(300).springify().damping(14)}>
+        <Animated.View entering={FadeInDown.delay(300).duration(400)}>
           <TouchableOpacity 
             style={[styles.card, styles.userCard]} 
             activeOpacity={0.8}

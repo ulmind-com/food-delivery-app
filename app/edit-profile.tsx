@@ -116,7 +116,7 @@ export default function EditProfileScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           
-          <Animated.View entering={FadeInDown.delay(50).springify()} style={styles.avatarContainer}>
+          <Animated.View entering={FadeInDown.delay(50).duration(400)} style={styles.avatarContainer}>
             <View style={styles.avatarRing}>
               {displayImage ? (
                 <Image source={{ uri: resolveImageURL(displayImage) }} style={styles.avatarImage} contentFit="cover" />
@@ -139,7 +139,7 @@ export default function EditProfileScreen() {
 
           <View style={styles.formArea}>
             {/* Read-Only Email */}
-            <Animated.View entering={FadeInDown.delay(100).springify()}>
+            <Animated.View entering={FadeInDown.delay(100).duration(400)}>
               <Text style={styles.label}>Email Address</Text>
               <View style={[styles.inputWrap, { backgroundColor: '#F3F4F6' }]}>
                 <Mail size={20} color={MUTED} />
@@ -148,7 +148,7 @@ export default function EditProfileScreen() {
             </Animated.View>
 
             {/* Name */}
-            <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <Animated.View entering={FadeInDown.delay(200).duration(400)}>
               <Text style={styles.label}>Full Name</Text>
               <View style={styles.inputWrap}>
                 <UserIcon size={20} color={name ? PRIMARY : MUTED} />
@@ -163,7 +163,7 @@ export default function EditProfileScreen() {
             </Animated.View>
 
             {/* Phone */}
-            <Animated.View entering={FadeInDown.delay(300).springify()}>
+            <Animated.View entering={FadeInDown.delay(300).duration(400)}>
               <Text style={styles.label}>Phone Number</Text>
               <View style={styles.inputWrap}>
                 <Phone size={20} color={mobile ? PRIMARY : MUTED} />
@@ -179,7 +179,7 @@ export default function EditProfileScreen() {
             </Animated.View>
 
             {/* Save Button */}
-            <Animated.View entering={FadeInDown.delay(400).springify()} style={{ marginTop: 24 }}>
+            <Animated.View entering={FadeInDown.delay(400).duration(400)} style={{ marginTop: 24 }}>
               <TouchableOpacity
                 style={[styles.saveBtn, loading && { opacity: 0.7 }]}
                 activeOpacity={0.8}

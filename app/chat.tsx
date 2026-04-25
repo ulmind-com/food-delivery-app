@@ -99,25 +99,7 @@ export default function ChatScreen() {
   const chatIdRef = useRef<string | undefined>(undefined);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // ─── Play Audio ────────────────────────────────────────────────────────
-  const playDing = async () => {
-    try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-      const { sound } = await Audio.Sound.createAsync(
-        require('../assets/sounds/zomato.mp3')
-      );
-      await sound.playAsync();
-      setTimeout(() => {
-        sound.unloadAsync();
-      }, 5000);
-    } catch (e) {
-      console.log('Audio missing, skipping sound.');
-    }
-  };
+  // Audio removed as requested by user
 
   // ─── Init Data ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -152,7 +134,6 @@ export default function ChatScreen() {
       if (data.chatId !== chatIdRef.current) return;
       if (data.message.sender === "user") return;
       
-      playDing();
       chatApi.markRead().catch(() => {});
       
       setChat((prev) => {
@@ -373,8 +354,8 @@ export default function ChatScreen() {
             return (
               <Animated.View 
                 key={msg._id || i}
-                entering={FadeInUp.duration(400).springify()}
-                layout={Layout.springify()}
+                entering={FadeInUp.duration(400).duration(400)}
+                layout={Layout.duration(400)}
                 style={[styles.messageRow, isUser ? styles.msgRowRight : styles.msgRowLeft]}
               >
                 {!isUser && (

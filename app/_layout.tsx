@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { StyleSheet, Dimensions, Text, Platform } from 'react-native';
+import { StyleSheet, Dimensions, Text, Platform, AppState } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Animated, { FadeOut, FadeInDown, FadeIn, ZoomIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -79,6 +79,25 @@ function RootLayoutInner() {
       if (OneSignal) OneSignal.logout();
     }
   }, [isAuthenticated(), user?._id]);
+
+  // ── Aggressively clear OneSignal notifications when app is opened ──
+  // This guarantees that if a loud notification is ringing, tapping the app icon 
+  // (without clicking the notification itself) will instantly kill the sound.
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active' && OneSignal) {
+        OneSignal.Notifications.clearAll();
+      }
+    };
+    
+    // Also clear on initial app mount
+    if (OneSignal) {
+      OneSignal.Notifications.clearAll();
+    }
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
 
   // ── Critical: Role-based routing on startup ──
   useEffect(() => {

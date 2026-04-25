@@ -73,7 +73,7 @@ export default function OrderSuccessScreen() {
 
       <View style={styles.centerContent}>
         {/* Zomato style Big simple check animation */}
-        <Animated.View entering={ZoomIn.duration(400).springify().damping(15)}>
+        <Animated.View entering={ZoomIn.duration(400).duration(400)}>
           <LottieView
             source={require('../public/Done.json')}
             autoPlay
@@ -85,12 +85,12 @@ export default function OrderSuccessScreen() {
 
       {/* Clean text below animation */}
       <View style={styles.textContainer}>
-        <Animated.Text entering={FadeInDown.delay(600).springify()} style={styles.title}>
+        <Animated.Text entering={FadeInDown.delay(600).duration(400)} style={styles.title}>
           Order Placed
         </Animated.Text>
         
         {/* Simple muted subtitle */}
-        <Animated.Text entering={FadeInDown.delay(700).springify()} style={styles.subtitle}>
+        <Animated.Text entering={FadeInDown.delay(700).duration(400)} style={styles.subtitle}>
           Sit back & relax, the restaurant is preparing your food.
         </Animated.Text>
       </View>

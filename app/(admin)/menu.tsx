@@ -111,7 +111,7 @@ export default function AdminMenu() {
     const isAvailable = item.isAvailable !== false && item.inStock !== false;
     
     return (
-      <Animated.View entering={FadeInDown.delay(index * 20).springify().damping(16)} style={[styles.card, !isAvailable && styles.cardInactive]}>
+      <Animated.View entering={FadeInDown.delay(index * 20).duration(400)} style={[styles.card, !isAvailable && styles.cardInactive]}>
         <View style={styles.cardHeader}>
            <Image source={{ uri: resolveImageURL(item.image || item.imageURL) }} style={styles.image} contentFit="cover" />
            <View style={styles.cardInfoBox}>

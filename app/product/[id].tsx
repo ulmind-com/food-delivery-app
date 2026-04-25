@@ -165,7 +165,7 @@ export default function ProductDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
         
         {/* Large Product Image spilling into the bottom card */}
-        <Animated.View entering={FadeInDown.delay(100).springify().damping(16)} style={styles.imageWrapper}>
+        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.imageWrapper}>
            {imageUrl ? (
               <Image source={{ uri: imageUrl }} style={styles.heroImage} contentFit="contain" />
             ) : (
@@ -174,7 +174,7 @@ export default function ProductDetailScreen() {
         </Animated.View>
 
         {/* Bottom Details Sheet (White Box) */}
-        <Animated.View entering={SlideInDown.delay(200).springify().damping(18)} style={styles.detailsSheet}>
+        <Animated.View entering={SlideInDown.delay(200).duration(400)} style={styles.detailsSheet}>
           
           {/* Title Row */}
           <View style={styles.titleRow}>

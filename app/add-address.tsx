@@ -115,7 +115,7 @@ export default function AddAddressScreen() {
 
           {/* Pick From Map Banner */}
           {!isEditing && (
-            <Animated.View entering={FadeInDown.delay(50).springify()}>
+            <Animated.View entering={FadeInDown.delay(50).duration(400)}>
               <TouchableOpacity
                 style={styles.mapBanner}
                 activeOpacity={0.85}
@@ -147,7 +147,7 @@ export default function AddAddressScreen() {
 
           <View style={styles.formArea}>
 
-            <Animated.View entering={FadeInDown.delay(100).springify()}>
+            <Animated.View entering={FadeInDown.delay(100).duration(400)}>
               <Text style={styles.label}>Save as</Text>
               <View style={styles.typeRow}>
                 <TypeButton itemType="HOME" icon={<Home size={18} />} label="Home" />
@@ -156,7 +156,7 @@ export default function AddAddressScreen() {
               </View>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(150).springify()}>
+            <Animated.View entering={FadeInDown.delay(150).duration(400)}>
               <Text style={styles.label}>House / Flat / Block No. *</Text>
               <TextInput
                 style={styles.inputArea}
@@ -168,7 +168,7 @@ export default function AddAddressScreen() {
               />
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <Animated.View entering={FadeInDown.delay(200).duration(400)}>
               <Text style={styles.label}>Apartment / Road / Area</Text>
               <TextInput
                 style={styles.input}
@@ -179,7 +179,7 @@ export default function AddAddressScreen() {
               />
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(250).springify()} style={styles.row}>
+            <Animated.View entering={FadeInDown.delay(250).duration(400)} style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>City *</Text>
                 <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="e.g. Kolkata" placeholderTextColor="#A1A1AA" />
@@ -190,7 +190,7 @@ export default function AddAddressScreen() {
               </View>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.row}>
+            <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>PIN Code *</Text>
                 <TextInput style={styles.input} value={postalCode} onChangeText={setPostalCode} keyboardType="number-pad" placeholder="e.g. 700001" placeholderTextColor="#A1A1AA" />
@@ -205,7 +205,7 @@ export default function AddAddressScreen() {
         </ScrollView>
 
         {/* Footer */}
-        <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.footer}>
+        <Animated.View entering={FadeInDown.delay(400).duration(400)} style={styles.footer}>
           <TouchableOpacity
             style={[styles.saveBtn, loading && { opacity: 0.7 }]}
             activeOpacity={0.85}

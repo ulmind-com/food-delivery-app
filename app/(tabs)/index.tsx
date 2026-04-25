@@ -38,6 +38,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import LottieView from 'lottie-react-native';
+import * as Haptics from 'expo-haptics';
 import { menuApi, restaurantApi, couponApi, userApi } from '../../services/api';
 import { ProductCard } from '../../components/ProductCard';
 import { FloatingCartBar } from '../../components/FloatingCartBar';
@@ -635,6 +636,7 @@ export default function HomeScreen() {
   });
 
   const handleVoiceSearch = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (Platform.OS === 'web') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -690,6 +692,7 @@ export default function HomeScreen() {
   };
 
   const handleVegToggle = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const nextState = !isVegOnly;
     setIsVegOnly(nextState);
     setShowVegSplash(true);
@@ -732,6 +735,7 @@ export default function HomeScreen() {
   };
 
   const handleCategorySelect = (id: string) => {
+    Haptics.selectionAsync();
     setSelectedCategory(id === selectedCategory ? '' : id);
   };  const filteredProducts = getFilteredProducts();
 
@@ -964,7 +968,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={stopVoiceSearch} />
           <View style={styles.voiceModal}>
             <Animated.View 
-               entering={ZoomIn.springify().damping(12).delay(100)} 
+               entering={ZoomIn.duration(400).delay(100)} 
                style={[styles.voiceMicCircle, speechError ? { backgroundColor: '#DC2626', shadowColor: '#DC2626' } : {}]}
             >
               <Mic2 size={40} color="#FFFFFF" />

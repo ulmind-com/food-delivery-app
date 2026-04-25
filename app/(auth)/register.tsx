@@ -95,7 +95,7 @@ export default function RegisterScreen() {
   ) => {
     const isFocused = focusField === field;
     return (
-      <Animated.View entering={FadeInDown.delay(config.delay).springify().damping(16)}>
+      <Animated.View entering={FadeInDown.delay(config.delay).duration(500)}>
         <Text style={styles.label}>{label}</Text>
         <Pressable 
           onPress={() => inputRefs.current[field]?.focus()}
@@ -131,14 +131,20 @@ export default function RegisterScreen() {
       <BackgroundGrid />
       
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" bounces={false}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="handled" 
+          bounces={false}
+          automaticallyAdjustKeyboardInsets={true}
+        >
           
           {/* Hero Area */}
           <View style={styles.heroArea}>
-            <Animated.View entering={FadeInDown.delay(100).springify().damping(14)}>
+            <Animated.View entering={FadeInDown.delay(100).duration(500)}>
               <Image source={require('../../assets/logo/restaurantLOGO.png')} style={styles.heroImage} resizeMode="contain" />
             </Animated.View>
-            <Animated.View entering={FadeInDown.delay(200).springify().damping(14)}>
+            <Animated.View entering={FadeInDown.delay(200).duration(500)}>
               <Text style={styles.title}>Create Account</Text>
               <Text style={styles.subtext}>Step into a place where taste meets comfort and joy.</Text>
             </Animated.View>
@@ -173,7 +179,7 @@ export default function RegisterScreen() {
             )}
 
             {/* Terms and conditions checkbox */}
-            <Animated.View entering={FadeInDown.delay(500).springify().damping(16)} style={styles.termsWrap}>
+            <Animated.View entering={FadeInDown.delay(500).duration(500)} style={styles.termsWrap}>
               <TouchableOpacity style={styles.checkboxContainer} onPress={() => setAgree(!agree)} activeOpacity={0.8}>
                 <View style={[styles.checkbox, agree && styles.checkboxActive]}>
                   {agree && <Check size={12} color="#FFFFFF" />}
@@ -184,7 +190,7 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(600).springify().damping(16)}>
+            <Animated.View entering={FadeInDown.delay(600).duration(500)}>
               <TouchableOpacity
                 style={[styles.ctaBtn, loading && { opacity: 0.7 }]}
                 activeOpacity={0.85}
@@ -195,7 +201,7 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(700).springify().damping(16)} style={styles.footer}>
+            <Animated.View entering={FadeInDown.delay(700).duration(500)} style={styles.footer}>
               <Text style={styles.footerTxt}>Already have an account? </Text>
               <TouchableOpacity onPress={() => router.replace('/(auth)/login')} hitSlop={10}>
                 <Text style={styles.footerLink}>Log In</Text>
@@ -234,7 +240,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 36, 
     paddingHorizontal: 28, 
     paddingTop: 25,
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 120,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 0.1,

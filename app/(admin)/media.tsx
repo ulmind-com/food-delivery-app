@@ -83,7 +83,7 @@ export default function AdminMediaScreen() {
     const isVideo = item.videoUrl?.includes('.mp4') || item.videoUrl?.includes('youtube');
 
     return (
-      <Animated.View entering={FadeInDown.delay(index * 20).springify().damping(16)} style={styles.card}>
+      <Animated.View entering={FadeInDown.delay(index * 20).duration(400)} style={styles.card}>
         <View style={styles.mediaContainer}>
            <Image source={{ uri: resolveImageURL(item.thumbnailUrl || item.videoUrl || item.image) }} style={styles.mediaImage} contentFit="cover" />
            {isVideo && (

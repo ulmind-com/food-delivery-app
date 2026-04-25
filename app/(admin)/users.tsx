@@ -77,7 +77,7 @@ export default function AdminUsersScreen() {
     const initials = (item.name || 'U').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
     
     return (
-      <Animated.View entering={FadeInDown.delay(index * 20).springify().damping(16)} style={styles.card}>
+      <Animated.View entering={FadeInDown.delay(index * 20).duration(400)} style={styles.card}>
         <View style={styles.cardHeader}>
            {item.profileImage ? (
              <Image source={{ uri: resolveImageURL(item.profileImage) }} style={styles.avatar} contentFit="cover" />

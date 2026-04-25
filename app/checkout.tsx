@@ -17,6 +17,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { orderApi, restaurantApi, cartApi, paymentApi } from '../services/api';
 import RazorpayCheckout from 'react-native-razorpay';
 import { TicketCoupon } from '../components/TicketCoupon';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 const PRIMARY = '#FC8019';
@@ -115,6 +116,7 @@ export default function CheckoutScreen() {
   const isLoading = isPlacing || isCartLoading || syncCount > 0 || isInitialMount;
 
   const handlePlaceOrder = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (!selectedAddress) {
       Alert.alert('Address Required', 'Please select a delivery address before placing your order.');
       return;
@@ -340,11 +342,11 @@ export default function CheckoutScreen() {
                     </View>
                   </View>
                   <View style={styles.qtyControl}>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => decrementItem(item.itemId)}>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); decrementItem(item.itemId); }}>
                       <Minus size={12} color={PRIMARY} strokeWidth={3} />
                     </TouchableOpacity>
                     <Text style={styles.qtyText}>{item.quantity}</Text>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => incrementItem(item.itemId)}>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); incrementItem(item.itemId); }}>
                       <Plus size={12} color={PRIMARY} strokeWidth={3} />
                     </TouchableOpacity>
                   </View>
@@ -539,7 +541,7 @@ export default function CheckoutScreen() {
         <View style={styles.paymentToggleRow}>
           <TouchableOpacity 
             style={[styles.paymentToggle, paymentMethod === 'ONLINE' && styles.paymentToggleActive]}
-            onPress={() => setPaymentMethod('ONLINE')}
+            onPress={() => { Haptics.selectionAsync(); setPaymentMethod('ONLINE'); }}
             disabled={isLoading}
           >
             {isCartLoading ? (
@@ -561,7 +563,7 @@ export default function CheckoutScreen() {
               paymentMethod === 'COD' && styles.paymentToggleActive,
               isCodDisabled && styles.paymentToggleDisabled,
             ]}
-            onPress={() => !isCodDisabled && setPaymentMethod('COD')}
+            onPress={() => { if (!isCodDisabled) { Haptics.selectionAsync(); setPaymentMethod('COD'); } }}
             disabled={isCodDisabled || isLoading}
           >
             {isCartLoading ? (

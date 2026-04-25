@@ -222,7 +222,18 @@ export default function LocationPickerScreen() {
 
   const handleMapConfirm = () => {
     if (!resolvedAddress) return;
-    setArea([resolvedAddress.addressLine1, resolvedAddress.addressLine2].filter(Boolean).join(", ") || resolvedAddress.displayName || '');
+    
+    // Use the full display name that was shown to the user on the map card
+    const fullText = resolvedAddress.displayName || [resolvedAddress.addressLine1, resolvedAddress.addressLine2].filter(Boolean).join(", ");
+    
+    // Pre-fill House No with the first part (often POI/Building name)
+    const parts = fullText.split(',');
+    setHouseNo(parts[0]?.trim() || '');
+    
+    // Pre-fill Area with the rest of the address
+    const remainingArea = parts.slice(1).join(',').trim();
+    setArea(remainingArea || fullText);
+    
     setCity(resolvedAddress.city || '');
     setStateForm(resolvedAddress.state || '');
     setPostal(resolvedAddress.postalCode || '');
@@ -296,7 +307,7 @@ export default function LocationPickerScreen() {
     return (
       <View style={styles.initContainer}>
         <Stack.Screen options={{ presentation: 'modal', headerShown: false }} />
-        <Animated.View entering={ZoomIn.springify().damping(18)} style={styles.initContent}>
+        <Animated.View entering={ZoomIn.duration(400)} style={styles.initContent}>
           <LottieView
             source={require('../assets/lottie/Location.json')}
             autoPlay

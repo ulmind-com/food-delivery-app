@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
   withSpring, 
   runOnJS, 
   interpolate,
-  Extrapolation,
-  interpolateColor
+  Extrapolation
 } from 'react-native-reanimated';
 import { ChevronRight, Check } from 'lucide-react-native';
 
@@ -35,27 +34,31 @@ export const SwipeButton = ({ onComplete, title, colors = ['#0EA5E9', '#0369A1']
     onComplete();
   };
 
-  const animatedGestureHandler = (event: any) => {
-    'worklet';
-    if (toggled) return;
-    const newValue = event.translationX;
-    
-    if (newValue >= 0 && newValue <= H_SWIPE_RANGE) {
-      X.value = newValue;
-    }
-  };
+  const startX = useSharedValue(0);
 
-  const onEnd = (event: any) => {
-    'worklet';
-    if (toggled) return;
-    if (X.value < H_SWIPE_RANGE - 20) {
-      X.value = withSpring(0, { damping: 20, stiffness: 200 });
-    } else {
-      X.value = withSpring(H_SWIPE_RANGE, { damping: 20, stiffness: 200 }, (isFinished) => {
-        if (isFinished) runOnJS(handleComplete)();
-      });
-    }
-  };
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10]) // For web scrolling compatibility
+    .onStart(() => {
+      startX.value = X.value;
+    })
+    .onUpdate((event) => {
+      if (toggled) return;
+      const newValue = startX.value + event.translationX;
+      
+      if (newValue >= 0 && newValue <= H_SWIPE_RANGE) {
+        X.value = newValue;
+      }
+    })
+    .onEnd(() => {
+      if (toggled) return;
+      if (X.value < H_SWIPE_RANGE - 20) {
+        X.value = withSpring(0, { damping: 20, stiffness: 200 });
+      } else {
+        X.value = withSpring(H_SWIPE_RANGE, { damping: 20, stiffness: 200 }, (isFinished) => {
+          if (isFinished) runOnJS(handleComplete)();
+        });
+      }
+    });
 
   const animatedStyles = {
     swipeable: useAnimatedStyle(() => {
@@ -102,10 +105,7 @@ export const SwipeButton = ({ onComplete, title, colors = ['#0EA5E9', '#0369A1']
     >
       <Animated.View style={[styles.bgWave, { backgroundColor: colors[0] }, animatedStyles.bgWave]} />
       
-      <PanGestureHandler 
-        onGestureEvent={animatedGestureHandler} 
-        onEnded={onEnd}
-      >
+      <GestureDetector gesture={panGesture}>
         <Animated.View style={[styles.swipeable, animatedStyles.swipeable]}>
            {toggled ? (
               <Check size={24} color={colors[0]} />
@@ -113,7 +113,7 @@ export const SwipeButton = ({ onComplete, title, colors = ['#0EA5E9', '#0369A1']
               <ChevronRight size={24} color={colors[0]} />
            )}
         </Animated.View>
-      </PanGestureHandler>
+      </GestureDetector>
 
       <Animated.Text style={[styles.title, { color: colors[0] }, animatedStyles.swipeText]}>
         {toggled ? 'CONFIRMED' : title}

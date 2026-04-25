@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { MessageSquare, Tag, Users, Package, LogOut, Settings } from 'lucide-react-native';
+import { MessageSquare, Tag, Users, Package, LogOut, ChevronRight, ShieldCheck } from 'lucide-react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 
 const PRIMARY = '#111827';
@@ -29,47 +29,74 @@ export default function AdminMoreScreen() {
     }
   };
 
-  const GRID_ITEMS = [
-    { title: 'Chat Support', icon: MessageSquare, color: '#3B82F6', route: '/(admin)/chat' },
-    { title: 'Coupons', icon: Tag, color: '#F59E0B', route: '/(admin)/coupons' },
-    { title: 'Users', icon: Users, color: '#8B5CF6', route: '/(admin)/users' },
-    { title: 'Media Manager', icon: Package, color: '#10B981', route: '/(admin)/media' },
+  const LIST_ITEMS = [
+    { title: 'Chat Support', subtitle: 'Manage customer queries', icon: MessageSquare, color: '#3B82F6', route: '/(admin)/chat' },
+    { title: 'Coupons', subtitle: 'Create and manage offers', icon: Tag, color: '#F59E0B', route: '/(admin)/coupons' },
+    { title: 'Users', subtitle: 'View customer accounts', icon: Users, color: '#8B5CF6', route: '/(admin)/users' },
+    { title: 'Media Manager', subtitle: 'Manage banners & assets', icon: Package, color: '#10B981', route: '/(admin)/media' },
   ];
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top + 10 : 40 }]}>
-        <Text style={styles.headerTitle}>More Tools</Text>
-        <Text style={styles.headerSubtitle}>Manage advanced settings</Text>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top + 10 : 50 }]}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.headerTitle}>More Tools</Text>
+            <Text style={styles.headerSubtitle}>Manage advanced settings</Text>
+          </View>
+          <View style={styles.shieldIcon}>
+            <ShieldCheck size={28} color={PRIMARY} />
+          </View>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.grid}>
-          {GRID_ITEMS.map((item, index) => {
+        
+        {/* Settings Group */}
+        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.cardGroup}>
+          {LIST_ITEMS.map((item, index) => {
             const Icon = item.icon;
+            const isLast = index === LIST_ITEMS.length - 1;
             return (
-              <Animated.View key={index} entering={FadeInDown.delay(index * 100).springify().damping(14)} style={styles.gridItemWrap}>
+              <React.Fragment key={index}>
                 <TouchableOpacity 
-                  style={styles.gridCard}
-                  activeOpacity={0.8}
+                  style={styles.listItem}
+                  activeOpacity={0.7}
                   onPress={() => router.push(item.route as any)}
                 >
                   <View style={[styles.iconWrap, { backgroundColor: `${item.color}15` }]}>
-                    <Icon size={26} color={item.color} strokeWidth={2} />
+                    <Icon size={22} color={item.color} strokeWidth={2.5} />
                   </View>
-                  <Text style={styles.gridTitle}>{item.title}</Text>
+                  <View style={styles.listTextWrap}>
+                    <Text style={styles.listTitle}>{item.title}</Text>
+                    <Text style={styles.listSubtitle}>{item.subtitle}</Text>
+                  </View>
+                  <ChevronRight size={20} color="#D1D5DB" />
                 </TouchableOpacity>
-              </Animated.View>
+                {!isLast && <View style={styles.divider} />}
+              </React.Fragment>
             );
           })}
-        </View>
+        </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(500).springify().damping(14)}>
-          <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleLogout}>
-            <LogOut size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Log Out</Text>
+        {/* System Group */}
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={[styles.cardGroup, { marginTop: 20 }]}>
+          <TouchableOpacity style={styles.listItem} activeOpacity={0.7} onPress={handleLogout}>
+            <View style={[styles.iconWrap, { backgroundColor: '#FEF2F2' }]}>
+              <LogOut size={22} color="#EF4444" strokeWidth={2.5} />
+            </View>
+            <View style={styles.listTextWrap}>
+              <Text style={[styles.listTitle, { color: '#EF4444' }]}>Log Out</Text>
+              <Text style={styles.listSubtitle}>Securely sign out of admin</Text>
+            </View>
           </TouchableOpacity>
         </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.footerInfo}>
+           <Text style={styles.versionText}>Foodie Admin App v1.0.0</Text>
+        </Animated.View>
+
       </ScrollView>
     </View>
   );
@@ -78,20 +105,23 @@ export default function AdminMoreScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F3F4F6', // Slightly darker off-white for contrast
   },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    backgroundColor: '#F3F4F6',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerTitle: {
     fontFamily: 'Inter-Black',
-    fontSize: 28,
+    fontSize: 32,
     color: PRIMARY,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   headerSubtitle: {
     fontFamily: 'Inter-Medium',
@@ -99,62 +129,75 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
+  shieldIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 100, // Space for Bottom Tab
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginBottom: 40,
-  },
-  gridItemWrap: {
-    width: '47%',
-  },
-  gridCard: {
+  cardGroup: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
+    borderRadius: 24,
+    paddingHorizontal: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    height: 140,
-    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.03,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
   },
   iconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginRight: 16,
   },
-  gridTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 15,
-    color: PRIMARY,
-    textAlign: 'center',
+  listTextWrap: {
+    flex: 1,
   },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  logoutText: {
+  listTitle: {
     fontFamily: 'Inter-Bold',
     fontSize: 16,
-    color: '#EF4444',
+    color: PRIMARY,
+    marginBottom: 2,
   },
+  listSubtitle: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    color: '#9CA3AF',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginLeft: 74, // Align with text
+    marginRight: 12,
+  },
+  footerInfo: {
+    marginTop: 40,
+    alignItems: 'center',
+  },
+  versionText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
+    color: '#9CA3AF',
+    letterSpacing: 1,
+  }
 });
