@@ -33,7 +33,7 @@ export default function AdminChatScreen() {
   const [selectedImages, setSelectedImages] = useState<any[]>([]);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     activeChatIdRef.current = activeChat?._id || null;
