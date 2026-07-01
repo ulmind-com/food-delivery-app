@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { MessageSquare, Tag, Users, Package, LogOut, ChevronRight, ShieldCheck } from 'lucide-react-native';
+import { MessageSquare, Tag, Users, LogOut, ChevronRight, ShieldCheck, Grid, Star, BarChart3, MapPin, Settings, Film, Clapperboard, Receipt } from 'lucide-react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 
 const PRIMARY = '#111827';
@@ -29,11 +29,38 @@ export default function AdminMoreScreen() {
     }
   };
 
-  const LIST_ITEMS = [
-    { title: 'Chat Support', subtitle: 'Manage customer queries', icon: MessageSquare, color: '#3B82F6', route: '/(admin)/chat' },
-    { title: 'Coupons', subtitle: 'Create and manage offers', icon: Tag, color: '#F59E0B', route: '/(admin)/coupons' },
-    { title: 'Users', subtitle: 'View customer accounts', icon: Users, color: '#8B5CF6', route: '/(admin)/users' },
-    { title: 'Media Manager', subtitle: 'Manage banners & assets', icon: Package, color: '#10B981', route: '/(admin)/media' },
+  const SECTIONS: { heading: string; items: { title: string; subtitle: string; icon: any; color: string; route: string }[] }[] = [
+    {
+      heading: 'Store & Menu',
+      items: [
+        { title: 'Categories', subtitle: 'Organize menu categories', icon: Grid, color: '#0EA5E9', route: '/(admin)/categories' },
+        { title: 'Restaurant Settings', subtitle: 'Hours, charges & details', icon: Settings, color: '#64748B', route: '/(admin)/settings' },
+      ],
+    },
+    {
+      heading: 'Sales & Insights',
+      items: [
+        { title: 'POS Billing', subtitle: 'Create offline orders', icon: Receipt, color: '#16A34A', route: '/(admin)/pos' },
+        { title: 'Analytics', subtitle: 'Revenue & trends', icon: BarChart3, color: '#6366F1', route: '/(admin)/analytics' },
+        { title: 'Order Map', subtitle: 'Delivery hotspots', icon: MapPin, color: '#EF4444', route: '/(admin)/map' },
+        { title: 'Reviews', subtitle: 'Ratings & feedback', icon: Star, color: '#F59E0B', route: '/(admin)/reviews' },
+      ],
+    },
+    {
+      heading: 'Content',
+      items: [
+        { title: 'Hero Videos', subtitle: 'Homepage banner videos', icon: Film, color: '#EC4899', route: '/(admin)/videos' },
+        { title: 'Vlogs', subtitle: 'Manage video stories', icon: Clapperboard, color: '#10B981', route: '/(admin)/vlogs' },
+      ],
+    },
+    {
+      heading: 'Engagement',
+      items: [
+        { title: 'Chat Support', subtitle: 'Manage customer queries', icon: MessageSquare, color: '#3B82F6', route: '/(admin)/chat' },
+        { title: 'Coupons', subtitle: 'Create and manage offers', icon: Tag, color: '#F59E0B', route: '/(admin)/coupons' },
+        { title: 'Users', subtitle: 'View customer accounts', icon: Users, color: '#8B5CF6', route: '/(admin)/users' },
+      ],
+    },
   ];
 
   return (
@@ -53,35 +80,40 @@ export default function AdminMoreScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* Settings Group */}
-        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.cardGroup}>
-          {LIST_ITEMS.map((item, index) => {
-            const Icon = item.icon;
-            const isLast = index === LIST_ITEMS.length - 1;
-            return (
-              <React.Fragment key={index}>
-                <TouchableOpacity 
-                  style={styles.listItem}
-                  activeOpacity={0.7}
-                  onPress={() => router.push(item.route as any)}
-                >
-                  <View style={[styles.iconWrap, { backgroundColor: `${item.color}15` }]}>
-                    <Icon size={22} color={item.color} strokeWidth={2.5} />
-                  </View>
-                  <View style={styles.listTextWrap}>
-                    <Text style={styles.listTitle}>{item.title}</Text>
-                    <Text style={styles.listSubtitle}>{item.subtitle}</Text>
-                  </View>
-                  <ChevronRight size={20} color="#D1D5DB" />
-                </TouchableOpacity>
-                {!isLast && <View style={styles.divider} />}
-              </React.Fragment>
-            );
-          })}
-        </Animated.View>
+        {/* Feature Sections */}
+        {SECTIONS.map((section, sIndex) => (
+          <Animated.View key={section.heading} entering={FadeInDown.delay(100 + sIndex * 80).duration(400)}>
+            <Text style={styles.sectionHeading}>{section.heading}</Text>
+            <View style={styles.cardGroup}>
+              {section.items.map((item, index) => {
+                const Icon = item.icon;
+                const isLast = index === section.items.length - 1;
+                return (
+                  <React.Fragment key={item.title}>
+                    <TouchableOpacity
+                      style={styles.listItem}
+                      activeOpacity={0.7}
+                      onPress={() => router.push(item.route as any)}
+                    >
+                      <View style={[styles.iconWrap, { backgroundColor: `${item.color}15` }]}>
+                        <Icon size={22} color={item.color} strokeWidth={2.5} />
+                      </View>
+                      <View style={styles.listTextWrap}>
+                        <Text style={styles.listTitle}>{item.title}</Text>
+                        <Text style={styles.listSubtitle}>{item.subtitle}</Text>
+                      </View>
+                      <ChevronRight size={20} color="#D1D5DB" />
+                    </TouchableOpacity>
+                    {!isLast && <View style={styles.divider} />}
+                  </React.Fragment>
+                );
+              })}
+            </View>
+          </Animated.View>
+        ))}
 
         {/* System Group */}
-        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={[styles.cardGroup, { marginTop: 20 }]}>
+        <Animated.View entering={FadeInDown.delay(500).duration(400)} style={[styles.cardGroup, { marginTop: 20 }]}>
           <TouchableOpacity style={styles.listItem} activeOpacity={0.7} onPress={handleLogout}>
             <View style={[styles.iconWrap, { backgroundColor: '#FEF2F2' }]}>
               <LogOut size={22} color="#EF4444" strokeWidth={2.5} />
@@ -145,6 +177,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 100, // Space for Bottom Tab
+  },
+  sectionHeading: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 12,
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 24,
+    marginBottom: 10,
+    marginLeft: 8,
   },
   cardGroup: {
     backgroundColor: '#FFFFFF',

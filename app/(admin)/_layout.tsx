@@ -3,13 +3,14 @@ import { View, Text, StyleSheet, Pressable, Platform, Dimensions } from 'react-n
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LayoutDashboard, ClipboardList, UtensilsCrossed, Grid, LogOut } from 'lucide-react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
   withSpring,
   withTiming,
   Easing,
   interpolate,
+  interpolateColor,
   withSequence,
   runOnJS,
 } from 'react-native-reanimated';
@@ -18,10 +19,10 @@ import { socket } from '../../services/socket';
 import { BellRing, X } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const PRIMARY = '#111827'; // Dark theme for Admin
-const INACTIVE = '#9CA3AF';
-const TAB_BG = '#FFFFFF';
-const PILL_BG = '#F3F4F6'; // Gray for admin
+const PRIMARY = '#111827';   // Dark dock background
+const ACCENT = '#FC8019';    // Brand orange (active pill)
+const INACTIVE = '#8B93A7';  // Muted icon on dark dock
+const ACTIVE_TXT = '#FFFFFF';
 
 export const AdminTabScrollContext = createContext<any>(null);
 
@@ -32,79 +33,65 @@ const ICONS: Record<string, any> = {
   more: Grid, // More options (Coupons, Users, Videos, Chat)
 };
 
-/* ─── Tab Button with smooth pill + lift effect ─── */
+/* ─── Tab Button: expanding orange pill on a dark dock ─── */
 const TabBarButton = ({ route, label, isFocused, onPress, badgeCount }: any) => {
   const progress = useSharedValue(isFocused ? 1 : 0);
 
   useEffect(() => {
-    progress.value = withSpring(isFocused ? 1 : 0, { 
-      stiffness: 180, damping: 16, mass: 0.8 
-    });
+    progress.value = withSpring(isFocused ? 1 : 0, { stiffness: 200, damping: 18, mass: 0.7 });
   }, [isFocused]);
 
+  const containerStyle = useAnimatedStyle(() => ({
+    flexGrow: 1 + progress.value * 1.15,
+  }));
+
   const pillStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: interpolate(progress.value, [0, 1], [0.6, 1]) },
-      { translateY: interpolate(progress.value, [0, 1], [6, 0]) },
-    ],
-    opacity: progress.value,
+    backgroundColor: interpolateColor(progress.value, [0, 1], ['rgba(252,128,25,0)', ACCENT]),
+    shadowOpacity: progress.value * 0.45,
   }));
 
   const iconStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: interpolate(progress.value, [0, 1], [1, 1.1]) },
-      { translateY: interpolate(progress.value, [0, 1], [0, -2]) },
-    ],
+    transform: [{ scale: interpolate(progress.value, [0, 1], [1, 1.06]) }],
   }));
 
   const labelStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.5, 1], [0.5, 0.8, 1]),
-    transform: [
-      { translateY: interpolate(progress.value, [0, 1], [2, 0]) },
-    ],
+    opacity: progress.value,
+    maxWidth: interpolate(progress.value, [0, 1], [0, 90]),
+    marginLeft: interpolate(progress.value, [0, 1], [0, 8]),
   }));
 
   const IconComponent = ICONS[route.name] || LayoutDashboard;
+  const iconColor = isFocused ? ACTIVE_TXT : INACTIVE;
 
   return (
-    <Pressable 
-      onPress={onPress} 
-      style={styles.tabBtn}
-      android_ripple={{ color: 'rgba(0,0,0,0.08)', borderless: true }}
-    >
-      <Animated.View style={[styles.activePill, pillStyle]} />
-
-      <Animated.View style={[styles.iconWrap, iconStyle]}>
-        <IconComponent 
-          size={22}
-          color={isFocused ? PRIMARY : INACTIVE} 
-          strokeWidth={isFocused ? 2.5 : 1.8} 
-        />
-        {badgeCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              {badgeCount > 9 ? '9+' : parseInt(badgeCount)}
-            </Text>
-          </View>
-        )}
-      </Animated.View>
-      
-      <Animated.Text style={[styles.tabLabel, isFocused && styles.tabLabelActive, labelStyle]}>
-        {label}
-      </Animated.Text>
-    </Pressable>
+    <Animated.View style={containerStyle}>
+      <Pressable onPress={onPress} android_ripple={{ color: 'rgba(255,255,255,0.12)', borderless: false }} style={styles.tabBtn}>
+        <Animated.View style={[styles.pill, pillStyle]}>
+          <Animated.View style={[styles.iconWrap, iconStyle]}>
+            <IconComponent size={22} color={iconColor} strokeWidth={isFocused ? 2.6 : 2} />
+            {badgeCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : parseInt(badgeCount)}</Text>
+              </View>
+            )}
+          </Animated.View>
+          <Animated.Text numberOfLines={1} style={[styles.tabLabel, labelStyle]}>
+            {label}
+          </Animated.Text>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 };
 
-/* ─── Custom Tab Bar ─── */
+/* ─── Floating dark dock tab bar ─── */
 function CustomAdminTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const bottomPadding = Platform.OS === 'ios' ? Math.max(insets.bottom, 8) : 8;
+  const bottomPadding = Math.max(insets.bottom, 12);
 
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: bottomPadding }]}>
-      <View style={styles.tabBarTopLine} />
-      <View style={styles.tabBarInner}>
+    <View style={[styles.tabBarContainer, { paddingBottom: bottomPadding }]} pointerEvents="box-none">
+      <View style={styles.dock}>
         {state.routes.map((route: any, index: number) => {
           const VISIBLE_TABS = ['index', 'orders', 'menu', 'more'];
           if (!VISIBLE_TABS.includes(route.name)) return null;
@@ -119,14 +106,7 @@ function CustomAdminTabBar({ state, descriptors, navigation }: any) {
           };
 
           return (
-            <TabBarButton 
-              key={route.key} 
-              route={route} 
-              label={label} 
-              isFocused={isFocused} 
-              onPress={onPress} 
-              badgeCount={0} 
-            />
+            <TabBarButton key={route.key} route={route} label={label} isFocused={isFocused} onPress={onPress} badgeCount={0} />
           );
         })}
       </View>
@@ -274,6 +254,14 @@ export default function AdminLayout() {
         name="chat"
         options={{ href: null }}
       />
+      <Tabs.Screen name="categories" options={{ href: null }} />
+      <Tabs.Screen name="reviews" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="videos" options={{ href: null }} />
+      <Tabs.Screen name="vlogs" options={{ href: null }} />
+      <Tabs.Screen name="analytics" options={{ href: null }} />
+      <Tabs.Screen name="map" options={{ href: null }} />
+      <Tabs.Screen name="pos" options={{ href: null }} />
     </Tabs>
     </AdminTabScrollContext.Provider>
   );
@@ -281,63 +269,59 @@ export default function AdminLayout() {
 
 const styles = StyleSheet.create({
   tabBarContainer: {
-    backgroundColor: TAB_BG,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    backgroundColor: 'transparent',
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  tabBarTopLine: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  tabBarInner: {
+  dock: {
     flexDirection: 'row',
-    height: 60,
-    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    backgroundColor: PRIMARY,
+    borderRadius: 26,
+    paddingHorizontal: 6,
+    paddingVertical: 7,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   tabBtn: {
-    flex: 1,
+    height: 48,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    height: '100%',
-    position: 'relative',
+    overflow: 'hidden',
   },
-  activePill: {
-    position: 'absolute',
-    width: 56,
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     height: 44,
+    paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: PILL_BG,
-    top: 8,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
   },
   iconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    height: 26,
-    zIndex: 2,
   },
   tabLabel: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 10,
-    color: INACTIVE,
-    marginTop: 3,
-    zIndex: 2,
-  },
-  tabLabelActive: {
-    fontFamily: 'Inter-Bold',
-    color: PRIMARY,
+    fontFamily: 'Inter-Black',
+    fontSize: 13,
+    color: ACTIVE_TXT,
+    letterSpacing: 0.2,
   },
   badge: {
     position: 'absolute',
-    top: -5,
-    right: -11,
+    top: -6,
+    right: -10,
     backgroundColor: '#EF4444',
     borderRadius: 9,
     minWidth: 16,
@@ -345,7 +329,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: TAB_BG,
+    borderColor: PRIMARY,
     zIndex: 10,
     paddingHorizontal: 3,
   },

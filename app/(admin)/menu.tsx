@@ -242,7 +242,7 @@ export default function AdminMenu() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG_COLOR },
   header: { paddingHorizontal: 20, paddingBottom: 20, backgroundColor: CARD_BG, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, shadowOpacity: 0.04, shadowRadius: 10, elevation: 4 },
-  headerTitle: { fontFamily: 'Inter-Black', fontSize: 32, color: TEXT_DARK, letterSpacing: -1 },
+  headerTitle: { fontFamily: 'Jakarta-ExtraBold', fontSize: 32, color: TEXT_DARK, letterSpacing: -1 },
   headerSubtitle: { fontFamily: 'Inter-Bold', fontSize: 13, color: '#10B981', marginTop: 2 },
   listContent: { padding: 16, paddingBottom: 100 },
   

@@ -473,7 +473,7 @@ export default function AdminChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG_COLOR },
   header: { paddingHorizontal: 24, paddingBottom: 24, backgroundColor: BG_COLOR },
-  headerTitle: { fontFamily: 'Inter-Black', fontSize: 32, color: TEXT_DARK, letterSpacing: -1 },
+  headerTitle: { fontFamily: 'Jakarta-ExtraBold', fontSize: 32, color: TEXT_DARK, letterSpacing: -1 },
   headerBadge: { backgroundColor: 'rgba(252, 128, 25, 0.1)', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginTop: 10 },
   headerSubtitle: { fontFamily: 'Inter-Bold', fontSize: 13, color: ACCENT },
   

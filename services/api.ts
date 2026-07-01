@@ -73,7 +73,20 @@ export const userApi = {
 
 export const restaurantApi = {
   get: () => api.get('/restaurant'),
+  update: (data: { isOpen?: boolean; openingTime?: string; closingTime?: string; isCodEnabled?: boolean; codStartTime?: string; codEndTime?: string; name?: string; address?: string; deliveryRadius?: number; freeDeliveryRadius?: number; chargePerKm?: number; mobile?: string; logo?: string; gstIn?: string; fssaiLicense?: string }) =>
+    api.put('/restaurant', data),
+  setLocation: (data: { lat: number; lng: number; address?: string }) =>
+    api.put('/restaurant/location', data),
   getVideos: () => api.get('/restaurant/videos'),
+  addVideo: (data: { url: string }) => api.post('/restaurant/videos', data),
+  deleteVideo: (index: number) => api.delete(`/restaurant/videos/${index}`),
+};
+
+// Category management (admin)
+export const categoryApi = {
+  create: (data: { name: string; imageURL: string }) => api.post('/categories', data),
+  update: (id: string, data: { name?: string; imageURL?: string }) => api.put(`/categories/${id}`, data),
+  delete: (id: string) => api.delete(`/categories/${id}`),
 };
 
 export const menuApi = {
@@ -126,6 +139,9 @@ export const reviewApi = {
   submitReview: (data: any) => api.post('/reviews', data),
   getMyReviews: () => api.get('/reviews/my'),
   getProductReviews: (productId: string) => api.get(`/reviews/product/${productId}`),
+  // Admin
+  getStats: () => api.get('/reviews/stats'),
+  getAdminReviews: () => api.get('/reviews/admin'),
 };
 
 export const chatApi = {
@@ -144,9 +160,16 @@ export const chatApi = {
 
 export const adminApi = {
   getDashboardStats: () => api.get('/admin/dashboard'),
+  getDashboard: (params?: { startDate?: string; endDate?: string }) => api.get('/admin/dashboard', { params }),
   getAnalytics: (params?: { startDate?: string; endDate?: string }) => api.get("/admin/analytics", { params }),
-  
-  
+  getMapAnalytics: (params?: { startDate?: string; endDate?: string }) => api.get('/admin/analytics/map', { params }),
+
+  // POS (Offline Billing)
+  createPOSOrder: (data: { items: any[]; customerName?: string; customerMobile?: string; paymentMethod: string }) =>
+    api.post('/admin/pos/create', data),
+  getPOSOrders: () => api.get('/admin/pos/orders'),
+
+
   // Orders
   getOrders: () => api.get('/admin/orders'),
   getOrdersByStatus: (status: string) => api.get(`/admin/orders/${status}`),
@@ -206,6 +229,34 @@ export const uploadApi = {
     });
     const responses = await Promise.all(uploadPromises);
     return responses.map((res) => res.data.url as string);
+  },
+  uploadVideo: async (file: { uri: string; name: string; type: string }) => {
+    let token: string | null = null;
+    try {
+      if (Platform.OS === 'web') {
+        token = localStorage.getItem('auth_token');
+      } else {
+        token = await SecureStore.getItemAsync('auth_token');
+      }
+    } catch (e) {}
+
+    const formData = new FormData();
+    if (Platform.OS === 'web') {
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+      formData.append('video', blob, file.name);
+    } else {
+      formData.append('video', file as any);
+    }
+
+    const res = await fetch(`${BASE_URL}/upload/video`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Video upload rejected by backend.');
+    const json = await res.json();
+    return { data: json };
   },
 };
 

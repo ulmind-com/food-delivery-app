@@ -18,6 +18,11 @@ import {
   Inter_800ExtraBold,
   Inter_900Black,
 } from '@expo-google-fonts/inter';
+import {
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider } from '../constants/ThemeContext';
 import { useAuthStore } from '../store/useAuthStore';
@@ -58,6 +63,9 @@ function RootLayoutInner() {
     'Inter-Bold': Inter_700Bold,
     'Inter-ExtraBold': Inter_800ExtraBold,
     'Inter-Black': Inter_900Black,
+    'Jakarta-SemiBold': PlusJakartaSans_600SemiBold,
+    'Jakarta-Bold': PlusJakartaSans_700Bold,
+    'Jakarta-ExtraBold': PlusJakartaSans_800ExtraBold,
   });
 
   useEffect(() => {

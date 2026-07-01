@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl,
   Platform, UIManager, Modal, ScrollView, TextInput,
   Alert, ActivityIndicator, Linking, Dimensions
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { adminApi } from '../../services/api';
 import { socket } from '../../services/socket';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { SkeletonCard } from '../../components/Skeleton';
 import { SwipeButton } from '../../components/SwipeButton';
@@ -33,12 +34,12 @@ const TEXT_DARK = '#0F172A';
 const TEXT_MUTED = '#64748B';
 const BORDER_COLOR = '#E2E8F0';
 
-const PRIMARY_GRADIENT = ['#FF4122', '#F96C00']; // Zomato/Swiggy premium feel
-const ACCEPTED_GRADIENT = ['#0EA5E9', '#0284C7'];
-const PREPARING_GRADIENT = ['#8B5CF6', '#6D28D9'];
-const DELIVERY_GRADIENT = ['#EC4899', '#BE185D'];
-const SUCCESS_GRADIENT = ['#10B981', '#059669'];
-const DANGER_GRADIENT = ['#F43F5E', '#E11D48'];
+const PRIMARY_GRADIENT = ['#FF4122', '#F96C00'] as const; // Zomato/Swiggy premium feel
+const ACCEPTED_GRADIENT = ['#0EA5E9', '#0284C7'] as const;
+const PREPARING_GRADIENT = ['#8B5CF6', '#6D28D9'] as const;
+const DELIVERY_GRADIENT = ['#EC4899', '#BE185D'] as const;
+const SUCCESS_GRADIENT = ['#10B981', '#059669'] as const;
+const DANGER_GRADIENT = ['#F43F5E', '#E11D48'] as const;
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '';
@@ -77,65 +78,132 @@ export default function AdminOrders() {
   const [prepTimeInput, setPrepTimeInput] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  const reconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const fetchOrders = async () => {
     try {
-      const res = filterStatus === 'ALL' ? await adminApi.getOrders() : await adminApi.getOrdersByStatus(filterStatus);
+      const res = await adminApi.getOrders();
       setOrders(res.data.orders || res.data || []);
     } catch (e) { console.log(e); } finally { setLoading(false); setRefreshing(false); }
   };
 
-  useEffect(() => { fetchOrders(); }, [filterStatus]);
+  // While WE perform an action, ignore the server's socket echo of that same change
+  // (we already patch the item from the API response). Prevents the double refresh.
+  const suppressUntil = useRef(0);
+
+  // Debounced full refetch — ONLY for genuine external changes (new customer order,
+  // another admin's change). Never called on our own successful action.
+  const reconcile = () => {
+    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
+    reconcileTimer.current = setTimeout(() => { fetchOrders(); }, 500);
+  };
+
+  useEffect(() => { fetchOrders(); }, []);
 
   useEffect(() => {
-    const handleUpdate = () => fetchOrders();
+    const handleUpdate = () => {
+      if (Date.now() < suppressUntil.current) return; // ignore echo of our own action
+      reconcile();
+    };
     socket.on('adminOrderUpdated', handleUpdate);
     socket.on('adminRefundUpdated', handleUpdate);
     socket.on('newOrder', handleUpdate);
-    return () => { socket.off('adminOrderUpdated', handleUpdate); socket.off('adminRefundUpdated', handleUpdate); socket.off('newOrder', handleUpdate); };
+    return () => {
+      socket.off('adminOrderUpdated', handleUpdate);
+      socket.off('adminRefundUpdated', handleUpdate);
+      socket.off('newOrder', handleUpdate);
+      if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
+    };
   }, []);
 
   const onRefresh = () => { setRefreshing(true); fetchOrders(); };
 
   // ─── Actions ───
+  const showError = (msg: string) => {
+    if (Platform.OS === 'web') window.alert(msg);
+    else Alert.alert('Action failed', msg);
+  };
+  const errMsg = (e: any, fallback: string) => e?.response?.data?.message || e?.message || fallback;
+
+  // Patch a single order in-place (list + open modal). No full list reload → no jolt.
+  const patchOrder = (id: string, data: any) => {
+    setOrders(prev => prev.map(o => (o._id === id ? { ...o, ...data } : o)));
+    setSelectedOrder((s: any) => (s && s._id === id ? { ...s, ...data } : s));
+  };
+
+  // Pull only the mutable fields from a server order response, so we never clobber
+  // populated fields (customer, items.product) with un-populated ObjectIds.
+  const serverFields = (d: any) => {
+    const out: any = { orderStatus: d.orderStatus, status: d.orderStatus };
+    if (d.paymentStatus !== undefined) out.paymentStatus = d.paymentStatus;
+    if (d.preparationTime !== undefined) out.preparationTime = d.preparationTime;
+    if (d.refundStatus !== undefined) out.refundStatus = d.refundStatus;
+    if (d.refundProcessedAt !== undefined) out.refundProcessedAt = d.refundProcessedAt;
+    if (d.cancellationReason !== undefined) out.cancellationReason = d.cancellationReason;
+    return out;
+  };
+
   const updateStatus = async (id: string, newStatus: string) => {
+    suppressUntil.current = Date.now() + 4000;
     setUpdatingId(id);
-    setOrders(prev => prev.map(o => o._id === id ? { ...o, status: newStatus, orderStatus: newStatus } : o));
-    if (selectedOrder?._id === id) setSelectedOrder({ ...selectedOrder, status: newStatus, orderStatus: newStatus });
-    try { await adminApi.updateOrderStatus(id, { status: newStatus }); } catch (e) {} finally { setUpdatingId(null); }
+    patchOrder(id, { status: newStatus, orderStatus: newStatus }); // optimistic
+    try {
+      const res = await adminApi.updateOrderStatus(id, { status: newStatus });
+      if (res?.data?._id) patchOrder(id, serverFields(res.data)); // authoritative
+    } catch (e) {
+      showError(errMsg(e, 'Could not update order status.'));
+      fetchOrders(); // revert from server only on failure
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const cancelOrder = (id: string, customId: string) => {
     const doCancel = () => updateStatus(id, 'CANCELLED');
-    if (Platform.OS === 'web') { if (window.confirm(`Cancel order ${customId}?`)) doCancel(); } 
+    if (Platform.OS === 'web') { if (window.confirm(`Cancel order ${customId}?`)) doCancel(); }
     else Alert.alert('Cancel Order', `Cancel ${customId}?`, [{ text: 'Keep', style: 'cancel' }, { text: 'Cancel', style: 'destructive', onPress: doCancel }]);
   };
 
   const updatePaymentStatus = async (id: string, paymentStatus: string) => {
-    setOrders(prev => prev.map(o => o._id === id ? { ...o, paymentStatus } : o));
-    if (selectedOrder?._id === id) setSelectedOrder({ ...selectedOrder, paymentStatus });
-    try { await adminApi.updatePaymentStatus(id, { paymentStatus }); } catch (e) {}
+    suppressUntil.current = Date.now() + 4000;
+    patchOrder(id, { paymentStatus }); // optimistic
+    try {
+      const res = await adminApi.updatePaymentStatus(id, { paymentStatus });
+      if (res?.data?._id) patchOrder(id, serverFields(res.data));
+    } catch (e) {
+      showError(errMsg(e, 'Could not update payment status.'));
+      fetchOrders();
+    }
   };
 
   const setPrepTime = async (id: string, time: number) => {
+    if (!time || isNaN(time) || time <= 0) return showError('Enter a valid preparation time (minutes).');
+    suppressUntil.current = Date.now() + 4000;
     setUpdatingId(id);
-    setOrders(prev => prev.map(o => {
-      if (o._id === id) {
-        const newStatus = ['ACCEPTED'].includes((o.orderStatus || o.status || '').toUpperCase()) ? 'PREPARING' : (o.orderStatus || o.status);
-        return { ...o, preparationTime: time, status: newStatus, orderStatus: newStatus };
-      }
-      return o;
-    }));
-    if (selectedOrder?._id === id) {
-      const newStatus = ['ACCEPTED'].includes((selectedOrder.orderStatus || selectedOrder.status || '').toUpperCase()) ? 'PREPARING' : (selectedOrder.orderStatus || selectedOrder.status);
-      setSelectedOrder({ ...selectedOrder, preparationTime: time, status: newStatus, orderStatus: newStatus });
+    const cur = orders.find(o => o._id === id);
+    const optimisticStatus = ['ACCEPTED'].includes((cur?.orderStatus || cur?.status || '').toUpperCase()) ? 'PREPARING' : (cur?.orderStatus || cur?.status);
+    patchOrder(id, { preparationTime: time, status: optimisticStatus, orderStatus: optimisticStatus }); // optimistic
+    try {
+      const res = await adminApi.updatePreparationTime(id, { preparationTime: time });
+      if (res?.data?._id) patchOrder(id, serverFields(res.data));
+    } catch (e) {
+      showError(errMsg(e, 'Could not update preparation time.'));
+      fetchOrders();
+    } finally {
+      setUpdatingId(null);
     }
-    try { await adminApi.updatePreparationTime(id, { preparationTime: time }); } catch (e) {} finally { setUpdatingId(null); }
   };
 
   const processRefund = async (id: string) => {
-    setOrders(prev => prev.map(o => o._id === id ? { ...o, refundStatus: 'PROCESSED', refundProcessedAt: new Date().toISOString() } : o));
-    if (selectedOrder?._id === id) setSelectedOrder({ ...selectedOrder, refundStatus: 'PROCESSED', refundProcessedAt: new Date().toISOString() });
-    try { await adminApi.processRefund(id); } catch (e) {}
+    suppressUntil.current = Date.now() + 4000;
+    patchOrder(id, { refundStatus: 'PROCESSED', refundProcessedAt: new Date().toISOString() }); // optimistic
+    try {
+      const res = await adminApi.processRefund(id);
+      if (res?.data?._id) patchOrder(id, serverFields(res.data));
+    } catch (e) {
+      showError(errMsg(e, 'Could not process refund.'));
+      fetchOrders();
+    }
   };
 
   // ─── Export CSV ───
@@ -148,13 +216,18 @@ export default function AdminOrders() {
       o.status || o.orderStatus, o.paymentMethod || "COD", o.paymentStatus || "PENDING", new Date(o.createdAt).toLocaleDateString(),
     ]);
     const csvContent = [headers.join(","), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
-    if (Platform.OS === 'web') {
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `orders_export.csv`; link.click();
-    } else {
-      const fileUri = FileSystem.documentDirectory + `orders_export.csv`;
-      await FileSystem.writeAsStringAsync(fileUri, csvContent);
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(fileUri);
+    try {
+      if (Platform.OS === 'web') {
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `orders_export.csv`; link.click();
+      } else {
+        const fileUri = (FileSystem.documentDirectory || FileSystem.cacheDirectory) + `orders_export.csv`;
+        await FileSystem.writeAsStringAsync(fileUri, csvContent);
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(fileUri);
+        else showError('Sharing is not available on this device.');
+      }
+    } catch (e: any) {
+      showError(errMsg(e, 'Failed to export CSV.'));
     }
   };
 
@@ -176,6 +249,20 @@ export default function AdminOrders() {
   ['PLACED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'].forEach(s => { statusCounts[s] = orders.filter((o: any) => (o.status || o.orderStatus || '').toUpperCase() === s).length; });
   const pendingRefunds = orders.filter((o: any) => ['CANCELLED'].includes((o.orderStatus || o.status || '').toUpperCase()) && o.paymentMethod === 'ONLINE' && o.paymentStatus === 'PAID' && o.refundStatus === 'PENDING').length;
 
+  // ─── Live summary metrics ───
+  const activeOrders = orders.filter((o: any) => !['DELIVERED', 'CANCELLED'].includes((o.orderStatus || o.status || '').toUpperCase()));
+  const pendingCount = activeOrders.length;
+  const deliveredCount = orders.filter((o: any) => (o.orderStatus || o.status || '').toUpperCase() === 'DELIVERED').length;
+  const revenueSum = orders
+    .filter((o: any) => (o.orderStatus || o.status || '').toUpperCase() !== 'CANCELLED')
+    .reduce((a: number, o: any) => a + Number(o.finalAmount || o.totalAmount || 0), 0);
+  const SUMMARY = [
+    { label: 'Total Orders', value: String(orders.length), g: PRIMARY_GRADIENT, Icon: ShoppingBag },
+    { label: 'In Progress', value: String(pendingCount), g: ACCEPTED_GRADIENT, Icon: Clock },
+    { label: 'Delivered', value: String(deliveredCount), g: SUCCESS_GRADIENT, Icon: CheckCircle },
+    { label: 'Revenue', value: `₹${revenueSum >= 1000 ? (revenueSum / 1000).toFixed(1) + 'k' : revenueSum.toFixed(0)}`, g: PREPARING_GRADIENT, Icon: TrendingUp },
+  ];
+
   // ─── Renders ───
   const renderOrderCard = ({ item: order, index }: { item: any; index: number }) => {
     const statusKey = (order.status || order.orderStatus || 'PLACED').toUpperCase();
@@ -189,7 +276,7 @@ export default function AdminOrders() {
                              statusKey === 'DELIVERED' ? SUCCESS_GRADIENT : DANGER_GRADIENT;
 
     return (
-      <Animated.View entering={FadeInDown.delay(Math.min(index * 30, 300)).duration(400)} style={styles.modernCard}>
+      <View style={styles.modernCard}>
         {/* Top Header */}
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
@@ -248,12 +335,12 @@ export default function AdminOrders() {
              <ArrowRight size={18} color="#0F172A" />
            </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>
     );
   };
 
   const renderRefundCard = ({ item: order, index }: { item: any; index: number }) => (
-    <Animated.View entering={FadeInDown.delay(index * 30).duration(400)} style={styles.modernCard}>
+    <View style={styles.modernCard}>
       <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <View style={[styles.iconBox, { backgroundColor: '#FFE4E6' }]}><ArrowLeftRight size={16} color="#E11D48" /></View>
@@ -281,7 +368,7 @@ export default function AdminOrders() {
              <ArrowRight size={18} color="#0F172A" />
           </TouchableOpacity>
       </View>
-    </Animated.View>
+    </View>
   );
 
   const OrderDetailModal = () => {
@@ -294,6 +381,7 @@ export default function AdminOrders() {
 
     return (
       <Modal visible={!!selectedOrder} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSelectedOrder(null)}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={[styles.modalContainer, { paddingTop: Platform.OS === 'ios' ? insets.top : 10 }]}>
           {/* Modal Header */}
           <View style={styles.modalHeader}>
@@ -486,12 +574,13 @@ export default function AdminOrders() {
 
           </ScrollView>
         </View>
+        </GestureHandlerRootView>
       </Modal>
     );
   };
 
-  return (
-    <View style={styles.container}>
+  const listHeader = (
+    <View>
       {/* Sleek Gradient Header */}
       <View style={[styles.headerContainer, { paddingTop: Platform.OS === 'ios' ? insets.top + 10 : 40 }]}>
          <View style={styles.headerTop}>
@@ -531,9 +620,27 @@ export default function AdminOrders() {
          </View>
       </View>
 
+      {/* Live Summary Strip */}
+      {mode === 'ORDERS' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll} contentContainerStyle={styles.summaryScroll}>
+          {SUMMARY.map((s, i) => {
+            const Icon = s.Icon;
+            return (
+              <Animated.View key={s.label} entering={FadeInDown.delay(i * 50).duration(400)}>
+                <LinearGradient colors={s.g} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.summaryCard}>
+                  <Icon size={18} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.summaryValue}>{s.value}</Text>
+                  <Text style={styles.summaryLabel}>{s.label}</Text>
+                </LinearGradient>
+              </Animated.View>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {/* Pill Selectors */}
       {mode === 'ORDERS' && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusPillsScroll}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll} contentContainerStyle={styles.statusPillsScroll}>
           <TouchableOpacity style={[styles.modernStatusPill, filterStatus === 'ALL' && styles.modernStatusPillActive]} onPress={() => setFilterStatus('ALL')}>
             <Text style={[styles.modernStatusPillText, filterStatus === 'ALL' && styles.modernStatusPillTextActive]}>All Operations</Text>
           </TouchableOpacity>
@@ -547,29 +654,37 @@ export default function AdminOrders() {
           ))}
         </ScrollView>
       )}
+    </View>
+  );
 
-      {/* Main List */}
-      {loading ? (
-        <View style={{ padding: 16 }}>
-           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-        </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item._id}
-          renderItem={mode === 'REFUNDS' ? renderRefundCard : renderOrderCard}
-          contentContainerStyle={styles.listArea}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY_GRADIENT[0]} />}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={{ paddingTop: 80, alignItems: 'center' }}>
-               <FileText size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
-               <Text style={{ fontFamily: 'Inter-Medium', color: TEXT_MUTED }}>No orders actived.</Text>
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={loading ? [] : filtered}
+        keyExtractor={(item) => item._id}
+        renderItem={mode === 'REFUNDS' ? renderRefundCard : renderOrderCard}
+        ListHeaderComponent={listHeader}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY_GRADIENT[0]} />}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        removeClippedSubviews={false}
+        ListEmptyComponent={
+          loading ? (
+            <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
+              {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
             </View>
-          }
-        />
-      )}
-      <OrderDetailModal />
+          ) : (
+            <View style={{ paddingTop: 60, alignItems: 'center' }}>
+              <FileText size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
+              <Text style={{ fontFamily: 'Inter-Medium', color: TEXT_MUTED }}>No orders active.</Text>
+            </View>
+          )
+        }
+      />
+      {/* Call as a function (not <OrderDetailModal/>) so state changes reconcile the
+          modal in place instead of remounting it — kills the jolt & "late update". */}
+      {OrderDetailModal()}
     </View>
   );
 }
@@ -580,7 +695,7 @@ const styles = StyleSheet.create({
   // Brand New Sleek Header
   headerContainer: { backgroundColor: CARD_BG, paddingHorizontal: 20, paddingBottom: 16, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 5, zIndex: 10 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  screenTitle: { fontFamily: 'Inter-Black', fontSize: 32, color: TEXT_DARK, letterSpacing: -1 },
+  screenTitle: { fontFamily: 'Jakarta-ExtraBold', fontSize: 32, color: TEXT_DARK, letterSpacing: -1 },
   screenSub: { fontFamily: 'Inter-Bold', fontSize: 13, color: PRIMARY_GRADIENT[0], marginTop: 2 },
   iconCircleBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: BG_COLOR, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER_COLOR },
 
@@ -600,6 +715,15 @@ const styles = StyleSheet.create({
   dateMicroInput: { fontFamily: 'Inter-SemiBold', fontSize: 11, color: TEXT_DARK, width: 44, textAlign: 'center' },
   dateDivider: { width: 1, height: 16, backgroundColor: BORDER_COLOR, marginHorizontal: 4 },
 
+  // Horizontal scroll rows must not stretch/collapse in the column layout
+  hScroll: { flexGrow: 0, flexShrink: 0 },
+
+  // Live Summary Strip
+  summaryScroll: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 2 },
+  summaryCard: { width: 130, borderRadius: 20, padding: 16, marginRight: 12, justifyContent: 'space-between', minHeight: 104, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 5 },
+  summaryValue: { fontFamily: 'Jakarta-ExtraBold', fontSize: 24, color: '#FFF', marginTop: 10, letterSpacing: -0.5 },
+  summaryLabel: { fontFamily: 'Inter-SemiBold', fontSize: 12, color: 'rgba(255,255,255,0.9)', marginTop: 2 },
+
   // Dynamic Status Pills
   statusPillsScroll: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
   modernStatusPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD_BG, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: 'transparent' },
@@ -610,7 +734,8 @@ const styles = StyleSheet.create({
 
   // Glass/Modern Card
   listArea: { padding: 20, paddingBottom: 120 },
-  modernCard: { backgroundColor: CARD_BG, borderRadius: 24, padding: 18, marginBottom: 16, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.04, shadowRadius: 16, elevation: 6 },
+  listContent: { paddingTop: 0, paddingBottom: 130 },
+  modernCard: { backgroundColor: CARD_BG, borderRadius: 24, padding: 18, marginBottom: 16, marginHorizontal: 20, marginTop: 4, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.04, shadowRadius: 16, elevation: 6 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#FFF0ED', alignItems: 'center', justifyContent: 'center' },
