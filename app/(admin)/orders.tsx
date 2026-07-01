@@ -52,6 +52,21 @@ const formatDate = (dateStr: string) => {
   return `${d.getDate()} ${months[d.getMonth()]}, ${hours}:${minutes}${ampm}`;
 };
 
+// Fallback: compute stats from an order list (accurate only when the FULL list is loaded,
+// i.e. legacy non-paginated backend). Overridden by the dedicated /admin/orders/stats endpoint.
+const computeStats = (list: any[]) => {
+  const counts: Record<string, number> = {};
+  let revenue = 0;
+  let pendingRefunds = 0;
+  list.forEach((o) => {
+    const s = (o.orderStatus || o.status || '').toUpperCase();
+    if (s) counts[s] = (counts[s] || 0) + 1;
+    if (s !== 'CANCELLED') revenue += Number(o.finalAmount || o.totalAmount || 0);
+    if (s === 'CANCELLED' && o.paymentMethod === 'ONLINE' && o.paymentStatus === 'PAID' && o.refundStatus === 'PENDING') pendingRefunds++;
+  });
+  return { counts, totalOrders: list.length, revenue, pendingRefunds };
+};
+
 // ─── Sexy Modern Button ───
 const ModernGradientButton = ({ label, colors, onPress, icon: Icon, disabled }: any) => (
   <TouchableOpacity activeOpacity={0.8} onPress={onPress} disabled={disabled} style={{ flex: 1, minHeight: 44, opacity: disabled ? 0.7 : 1 }}>
@@ -109,15 +124,17 @@ export default function AdminOrders() {
       const res = await adminApi.getOrders(buildParams(pageNum));
       const d: any = res.data || {};
       const list = d.data || d.orders || (Array.isArray(d) ? d : []);
+      const full = replace ? list : [...orders, ...list];
       setOrders(prev => (replace ? list : [...prev, ...list]));
       pageRef.current = d.page || pageNum;
       setHasMore(!!d.hasMore);
-      setStats({
-        counts: d.counts || {},
-        totalOrders: d.totalOrders ?? d.total ?? list.length,
-        revenue: d.revenue ?? 0,
-        pendingRefunds: d.pendingRefunds ?? 0,
-      });
+      if (d.counts) {
+        // paginated backend already sends accurate totals
+        setStats({ counts: d.counts, totalOrders: d.totalOrders ?? d.total ?? list.length, revenue: d.revenue ?? 0, pendingRefunds: d.pendingRefunds ?? 0 });
+      } else {
+        // legacy backend (full array) → compute from the full loaded list
+        setStats(computeStats(full));
+      }
     } catch (e) {
       console.log('load orders error', e);
     } finally {
@@ -128,6 +145,22 @@ export default function AdminOrders() {
     }
   };
 
+  // Dedicated stats endpoint (direct DB aggregation) — authoritative, independent of the page.
+  const statsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadStats = async () => {
+    try {
+      const res = await adminApi.getOrderStats();
+      const d: any = res.data;
+      if (d && d.counts) {
+        setStats({ counts: d.counts || {}, totalOrders: d.totalOrders || 0, revenue: d.revenue || 0, pendingRefunds: d.pendingRefunds || 0 });
+      }
+    } catch (e) { /* endpoint not deployed yet → keep computed fallback */ }
+  };
+  const bumpStats = () => {
+    if (statsTimer.current) clearTimeout(statsTimer.current);
+    statsTimer.current = setTimeout(loadStats, 400);
+  };
+
   const loadMore = () => {
     if (hasMore && !loadingRef.current) loadPage(pageRef.current + 1, false);
   };
@@ -136,6 +169,7 @@ export default function AdminOrders() {
   useEffect(() => {
     setLoading(true);
     loadPage(1, true);
+    loadStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, filterStatus]);
 
@@ -150,7 +184,7 @@ export default function AdminOrders() {
   // Debounced reload — ONLY for genuine external changes (new order / other admin)
   const reconcile = () => {
     if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
-    reconcileTimer.current = setTimeout(() => loadPage(1, true), 500);
+    reconcileTimer.current = setTimeout(() => { loadPage(1, true); loadStats(); }, 500);
   };
 
   useEffect(() => {
@@ -169,7 +203,7 @@ export default function AdminOrders() {
     };
   }, []);
 
-  const onRefresh = () => { setRefreshing(true); loadPage(1, true); };
+  const onRefresh = () => { setRefreshing(true); loadPage(1, true); loadStats(); };
 
   // ─── Actions ───
   const showError = (msg: string) => {
@@ -182,6 +216,7 @@ export default function AdminOrders() {
   const patchOrder = (id: string, data: any) => {
     setOrders(prev => prev.map(o => (o._id === id ? { ...o, ...data } : o)));
     setSelectedOrder((s: any) => (s && s._id === id ? { ...s, ...data } : s));
+    bumpStats(); // refresh summary/pill counts after a status/payment/refund change
   };
 
   // Pull only the mutable fields from a server order response, so we never clobber

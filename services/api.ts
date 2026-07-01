@@ -177,6 +177,7 @@ export const adminApi = {
   // Orders
   getOrders: (params?: PageParams & { status?: string; search?: string; startDate?: string; endDate?: string; refunds?: string }) =>
     api.get('/admin/orders', { params }),
+  getOrderStats: () => api.get('/admin/orders/stats'),
   getOrdersByStatus: (status: string) => api.get(`/admin/orders/${status}`),
   updateOrderStatus: (id: string, data: { status: string }) => 
     api.put(`/admin/orders/${id}/status`, data),
