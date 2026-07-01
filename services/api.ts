@@ -49,6 +49,10 @@ api.interceptors.response.use(
 //  API NAMESPACES (mirrors web axios.ts exactly)
 // ═══════════════════════════════════════════════════
 
+// Pagination params — when `page` is sent, admin list endpoints return
+// { data, page, limit, total, totalPages, hasMore, ... } instead of a plain array.
+export type PageParams = { page?: number; limit?: number; search?: string };
+
 export const authApi = {
   login: (data: { email: string; password: string }) =>
     api.post('/auth/login', data),
@@ -57,7 +61,7 @@ export const authApi = {
 };
 
 export const userApi = {
-  getAll: () => api.get('/users'),
+  getAll: (params?: PageParams) => api.get('/users', { params }),
   updateUser: (id: string, data: any) => api.put(`/users/${id}`, data),
   deleteUser: (id: string) => api.delete(`/users/${id}`),
   getProfile: () => api.get('/users/profile'),
@@ -141,7 +145,7 @@ export const reviewApi = {
   getProductReviews: (productId: string) => api.get(`/reviews/product/${productId}`),
   // Admin
   getStats: () => api.get('/reviews/stats'),
-  getAdminReviews: () => api.get('/reviews/admin'),
+  getAdminReviews: (params?: PageParams) => api.get('/reviews/admin', { params }),
 };
 
 export const chatApi = {
@@ -167,11 +171,12 @@ export const adminApi = {
   // POS (Offline Billing)
   createPOSOrder: (data: { items: any[]; customerName?: string; customerMobile?: string; paymentMethod: string }) =>
     api.post('/admin/pos/create', data),
-  getPOSOrders: () => api.get('/admin/pos/orders'),
+  getPOSOrders: (params?: PageParams) => api.get('/admin/pos/orders', { params }),
 
 
   // Orders
-  getOrders: () => api.get('/admin/orders'),
+  getOrders: (params?: PageParams & { status?: string; search?: string; startDate?: string; endDate?: string; refunds?: string }) =>
+    api.get('/admin/orders', { params }),
   getOrdersByStatus: (status: string) => api.get(`/admin/orders/${status}`),
   updateOrderStatus: (id: string, data: { status: string }) => 
     api.put(`/admin/orders/${id}/status`, data),
@@ -189,7 +194,7 @@ export const adminApi = {
   toggleProductStock: (id: string) => api.put(`/menu/${id}/toggle-stock`),
   
   // Users
-  getUsers: () => api.get('/admin/users'),
+  getUsers: (params?: PageParams) => api.get('/admin/users', { params }),
 };
 
 export const uploadApi = {
@@ -265,7 +270,7 @@ export const vlogApi = {
   incrementView: (id: string) => api.put(`/vlogs/${id}/view`),
   toggleLike: (id: string) => api.put(`/vlogs/${id}/like`),
   // Admin routes
-  getAdminVlogs: () => api.get("/vlogs/admin"),
+  getAdminVlogs: (params?: PageParams) => api.get("/vlogs/admin", { params }),
   createVlog: (data: any) => api.post("/vlogs", data),
   updateVlog: (id: string, data: any) => api.put(`/vlogs/${id}`, data),
   deleteVlog: (id: string) => api.delete(`/vlogs/${id}`),

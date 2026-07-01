@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, RefreshControl, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { reviewApi } from '../../services/api';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -41,30 +41,54 @@ export default function AdminReviewsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const fetchData = async () => {
+  const LIMIT = 20;
+  const pageRef = useRef(1);
+  const loadingRef = useRef(false);
+
+  const fetchStats = async () => {
     try {
-      const [statsRes, reviewsRes] = await Promise.all([
-        reviewApi.getStats().catch(() => ({ data: null })),
-        reviewApi.getAdminReviews().catch(() => ({ data: [] })),
-      ]);
-      setStats(statsRes.data);
-      setReviews(reviewsRes.data || []);
+      const res = await reviewApi.getStats();
+      setStats(res.data);
+    } catch (e) { /* stats optional */ }
+  };
+
+  const loadReviews = async (pageNum: number, replace: boolean) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    if (pageNum > 1) setLoadingMore(true);
+    try {
+      const res = await reviewApi.getAdminReviews({ page: pageNum, limit: LIMIT });
+      const d: any = res.data || {};
+      const list = d.data || (Array.isArray(d) ? d : []);
+      setReviews(prev => (replace ? list : [...prev, ...list]));
+      pageRef.current = d.page || pageNum;
+      setHasMore(!!d.hasMore);
     } catch (e) {
       console.log('Error fetching reviews:', e);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchStats();
+    loadReviews(1, true);
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchData();
+    fetchStats();
+    loadReviews(1, true);
+  };
+
+  const loadMore = () => {
+    if (hasMore && !loadingRef.current) loadReviews(pageRef.current + 1, false);
   };
 
   const totalReviews = stats?.totalReviews || reviews.length || 0;
@@ -154,6 +178,9 @@ export default function AdminReviewsScreen() {
               })}
             </View>
           }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loadingMore ? <View style={{ paddingVertical: 20 }}><ActivityIndicator color={ACCENT} /></View> : null}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <MessageSquare size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />

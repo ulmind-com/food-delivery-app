@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView, TouchableOpacity, RefreshControl, Platform, TextInput, Alert, Modal, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { menuApi, adminApi, restaurantApi } from '../../services/api';
@@ -48,6 +48,11 @@ export default function AdminPOSScreen() {
 
   const [history, setHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
+  const HIST_LIMIT = 20;
+  const histPageRef = useRef(1);
+  const histLoadingRef = useRef(false);
 
   const fetchMenu = async () => {
     try {
@@ -61,16 +66,28 @@ export default function AdminPOSScreen() {
     }
   };
 
-  const fetchHistory = async () => {
-    setLoadingHistory(true);
+  const fetchHistory = async (pageNum = 1, replace = true) => {
+    if (histLoadingRef.current) return;
+    histLoadingRef.current = true;
+    if (pageNum === 1) setLoadingHistory(true); else setLoadingMoreHistory(true);
     try {
-      const res = await adminApi.getPOSOrders();
-      setHistory(res.data || []);
+      const res = await adminApi.getPOSOrders({ page: pageNum, limit: HIST_LIMIT });
+      const d: any = res.data || {};
+      const list = d.data || (Array.isArray(d) ? d : []);
+      setHistory(prev => (replace ? list : [...prev, ...list]));
+      histPageRef.current = d.page || pageNum;
+      setHistoryHasMore(!!d.hasMore);
     } catch (e) {
       console.log('Error fetching POS history:', e);
     } finally {
+      histLoadingRef.current = false;
       setLoadingHistory(false);
+      setLoadingMoreHistory(false);
     }
+  };
+
+  const loadMoreHistory = () => {
+    if (historyHasMore && !histLoadingRef.current) fetchHistory(histPageRef.current + 1, false);
   };
 
   useEffect(() => {
@@ -258,7 +275,10 @@ export default function AdminPOSScreen() {
             data={history}
             keyExtractor={(item) => item._id}
             contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-            refreshControl={<RefreshControl refreshing={loadingHistory} onRefresh={fetchHistory} tintColor={ACCENT} />}
+            refreshControl={<RefreshControl refreshing={loadingHistory} onRefresh={() => fetchHistory(1, true)} tintColor={ACCENT} />}
+            onEndReached={loadMoreHistory}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={loadingMoreHistory ? <View style={{ paddingVertical: 20 }}><ActivityIndicator color={ACCENT} /></View> : null}
             renderItem={({ item, index }) => (
               <Animated.View entering={FadeInDown.delay(Math.min(index, 10) * 25).duration(350)} style={styles.histCard}>
                 <View style={{ flex: 1 }}>

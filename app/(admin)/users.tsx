@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform, Switch, TextInput, Alert, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform, Switch, TextInput, Alert, Modal, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { userApi } from '../../services/api';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -21,29 +21,57 @@ export default function AdminUsersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [users, setUsers] = useState<any[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const LIMIT = 20;
+  const pageRef = useRef(1);
+  const loadingRef = useRef(false);
+  const mountedRef = useRef(false);
 
   // Role Action Sheet
   const [selectedUserForRole, setSelectedUserForRole] = useState<any>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (pageNum = 1, replace = true) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    if (pageNum > 1) setLoadingMore(true);
     try {
-      const res = await userApi.getAll();
-      setUsers(res.data);
+      const res = await userApi.getAll({ page: pageNum, limit: LIMIT, search: search.trim() || undefined });
+      const d: any = res.data || {};
+      const list = d.data || (Array.isArray(d) ? d : []);
+      setUsers(prev => (replace ? list : [...prev, ...list]));
+      pageRef.current = d.page || pageNum;
+      setHasMore(!!d.hasMore);
     } catch (e) {
       console.log('Error fetching users:', e);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(1, true);
   }, []);
+
+  // Debounced server-side search (skip initial mount)
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    const t = setTimeout(() => { setLoading(users.length === 0); fetchUsers(1, true); }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchUsers();
+    fetchUsers(1, true);
+  };
+
+  const loadMore = () => {
+    if (hasMore && !loadingRef.current) fetchUsers(pageRef.current + 1, false);
   };
 
   const updateUser = async (id: string, data: any) => {
@@ -51,7 +79,7 @@ export default function AdminUsersScreen() {
     try {
       await userApi.updateUser(id, data);
     } catch {
-      fetchUsers(); // Revert
+      fetchUsers(1, true); // Revert
     }
   };
 
@@ -67,11 +95,8 @@ export default function AdminUsersScreen() {
     ]);
   };
 
-  const filteredUsers = users.filter(u => 
-    u.name?.toLowerCase().includes(search.toLowerCase()) || 
-    u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.mobile?.includes(search)
-  );
+  // Search is applied server-side (see debounced effect above)
+  const filteredUsers = users;
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
     const initials = (item.name || 'U').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
@@ -170,6 +195,9 @@ export default function AdminUsersScreen() {
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loadingMore ? <View style={{ paddingVertical: 20 }}><ActivityIndicator color={ACCENT} /></View> : null}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <SearchX size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
