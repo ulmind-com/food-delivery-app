@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform, TextInput, Alert, Modal, KeyboardAvoidingView, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { vlogApi, uploadApi } from '../../services/api';
@@ -31,6 +31,11 @@ export default function AdminVlogsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [vlogs, setVlogs] = useState<any[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const LIMIT = 20;
+  const pageRef = useRef(1);
+  const loadingRef = useRef(false);
 
   // Create modal
   const [showModal, setShowModal] = useState(false);
@@ -46,25 +51,38 @@ export default function AdminVlogsScreen() {
   const [previewVlog, setPreviewVlog] = useState<any>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const fetchVlogs = async () => {
+  const fetchVlogs = async (pageNum = 1, replace = true) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    if (pageNum > 1) setLoadingMore(true);
     try {
-      const res = await vlogApi.getAdminVlogs();
-      setVlogs(res.data || []);
+      const res = await vlogApi.getAdminVlogs({ page: pageNum, limit: LIMIT });
+      const d: any = res.data || {};
+      const list = d.data || (Array.isArray(d) ? d : []);
+      setVlogs(prev => (replace ? list : [...prev, ...list]));
+      pageRef.current = d.page || pageNum;
+      setHasMore(!!d.hasMore);
     } catch (e) {
       console.log('Error fetching vlogs:', e);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchVlogs();
+    fetchVlogs(1, true);
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchVlogs();
+    fetchVlogs(1, true);
+  };
+
+  const loadMore = () => {
+    if (hasMore && !loadingRef.current) fetchVlogs(pageRef.current + 1, false);
   };
 
   const resetForm = () => {
@@ -236,6 +254,9 @@ export default function AdminVlogsScreen() {
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loadingMore ? <View style={{ paddingVertical: 20 }}><ActivityIndicator color={ACCENT} /></View> : null}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Film size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />

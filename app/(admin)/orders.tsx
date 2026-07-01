@@ -67,38 +67,91 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [mode, setMode] = useState<'ORDERS' | 'REFUNDS'>('ORDERS');
-  
+
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [prepTimeInput, setPrepTimeInput] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // Pagination + server-provided totals (so summary/pills stay accurate)
+  const [hasMore, setHasMore] = useState(false);
+  const [stats, setStats] = useState<{ counts: Record<string, number>; totalOrders: number; revenue: number; pendingRefunds: number }>(
+    { counts: {}, totalOrders: 0, revenue: 0, pendingRefunds: 0 }
+  );
+
+  const LIMIT = 20;
+  const pageRef = useRef(1);
+  const loadingRef = useRef(false); // guard against overlapping page loads
+  const mountedRef = useRef(false);
   const reconcileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const fetchOrders = async () => {
-    try {
-      const res = await adminApi.getOrders();
-      setOrders(res.data.orders || res.data || []);
-    } catch (e) { console.log(e); } finally { setLoading(false); setRefreshing(false); }
-  };
-
-  // While WE perform an action, ignore the server's socket echo of that same change
-  // (we already patch the item from the API response). Prevents the double refresh.
   const suppressUntil = useRef(0);
 
-  // Debounced full refetch — ONLY for genuine external changes (new customer order,
-  // another admin's change). Never called on our own successful action.
-  const reconcile = () => {
-    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
-    reconcileTimer.current = setTimeout(() => { fetchOrders(); }, 500);
+  const buildParams = (pageNum: number) => ({
+    page: pageNum,
+    limit: LIMIT,
+    ...(mode === 'REFUNDS' ? { refunds: 'true' } : (filterStatus !== 'ALL' ? { status: filterStatus } : {})),
+    ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+    ...(startDate ? { startDate } : {}),
+    ...(endDate ? { endDate } : {}),
+  });
+
+  const loadPage = async (pageNum: number, replace: boolean) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    if (pageNum > 1) setLoadingMore(true);
+    try {
+      const res = await adminApi.getOrders(buildParams(pageNum));
+      const d: any = res.data || {};
+      const list = d.data || d.orders || (Array.isArray(d) ? d : []);
+      setOrders(prev => (replace ? list : [...prev, ...list]));
+      pageRef.current = d.page || pageNum;
+      setHasMore(!!d.hasMore);
+      setStats({
+        counts: d.counts || {},
+        totalOrders: d.totalOrders ?? d.total ?? list.length,
+        revenue: d.revenue ?? 0,
+        pendingRefunds: d.pendingRefunds ?? 0,
+      });
+    } catch (e) {
+      console.log('load orders error', e);
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+    }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  const loadMore = () => {
+    if (hasMore && !loadingRef.current) loadPage(pageRef.current + 1, false);
+  };
+
+  // Filter/mode changes → reload page 1 immediately (button taps feel instant)
+  useEffect(() => {
+    setLoading(true);
+    loadPage(1, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, filterStatus]);
+
+  // Search / date typing → debounced reload page 1 (skip the initial mount)
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    const t = setTimeout(() => { setLoading(orders.length === 0); loadPage(1, true); }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, startDate, endDate]);
+
+  // Debounced reload — ONLY for genuine external changes (new order / other admin)
+  const reconcile = () => {
+    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
+    reconcileTimer.current = setTimeout(() => loadPage(1, true), 500);
+  };
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -116,7 +169,7 @@ export default function AdminOrders() {
     };
   }, []);
 
-  const onRefresh = () => { setRefreshing(true); fetchOrders(); };
+  const onRefresh = () => { setRefreshing(true); loadPage(1, true); };
 
   // ─── Actions ───
   const showError = (msg: string) => {
@@ -152,7 +205,7 @@ export default function AdminOrders() {
       if (res?.data?._id) patchOrder(id, serverFields(res.data)); // authoritative
     } catch (e) {
       showError(errMsg(e, 'Could not update order status.'));
-      fetchOrders(); // revert from server only on failure
+      loadPage(1, true); // revert from server only on failure
     } finally {
       setUpdatingId(null);
     }
@@ -172,7 +225,7 @@ export default function AdminOrders() {
       if (res?.data?._id) patchOrder(id, serverFields(res.data));
     } catch (e) {
       showError(errMsg(e, 'Could not update payment status.'));
-      fetchOrders();
+      loadPage(1, true);
     }
   };
 
@@ -188,7 +241,7 @@ export default function AdminOrders() {
       if (res?.data?._id) patchOrder(id, serverFields(res.data));
     } catch (e) {
       showError(errMsg(e, 'Could not update preparation time.'));
-      fetchOrders();
+      loadPage(1, true);
     } finally {
       setUpdatingId(null);
     }
@@ -202,7 +255,7 @@ export default function AdminOrders() {
       if (res?.data?._id) patchOrder(id, serverFields(res.data));
     } catch (e) {
       showError(errMsg(e, 'Could not process refund.'));
-      fetchOrders();
+      loadPage(1, true);
     }
   };
 
@@ -231,34 +284,19 @@ export default function AdminOrders() {
     }
   };
 
-  // ─── Filtering ───
-  const filtered = (mode === 'REFUNDS' ? orders.filter((o: any) => ['CANCELLED'].includes((o.orderStatus || o.status || '').toUpperCase()) && o.paymentMethod === 'ONLINE' && o.paymentStatus === 'PAID') : orders)
-  .filter((o: any) => {
-    if (mode === 'ORDERS' && filterStatus !== 'ALL' && (o.status || o.orderStatus || '').toUpperCase() !== filterStatus) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      if (!(o._id?.toLowerCase().includes(q) || o.customId?.toLowerCase().includes(q) || o.customer?.name?.toLowerCase().includes(q) || o.customer?.mobile?.includes(q) || o.deliveryAddress?.mobile?.includes(q))) return false;
-    }
-    const d = new Date(o.createdAt);
-    if (startDate) { const s = new Date(startDate); s.setHours(0,0,0,0); if (d < s) return false; }
-    if (endDate) { const e = new Date(endDate); e.setHours(23,59,59,999); if (d > e) return false; }
-    return true;
-  }).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Server already applies status / search / date / refunds filters + sort.
+  const filtered = orders;
 
-  const statusCounts: Record<string, number> = {};
-  ['PLACED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'].forEach(s => { statusCounts[s] = orders.filter((o: any) => (o.status || o.orderStatus || '').toUpperCase() === s).length; });
-  const pendingRefunds = orders.filter((o: any) => ['CANCELLED'].includes((o.orderStatus || o.status || '').toUpperCase()) && o.paymentMethod === 'ONLINE' && o.paymentStatus === 'PAID' && o.refundStatus === 'PENDING').length;
-
-  // ─── Live summary metrics ───
-  const activeOrders = orders.filter((o: any) => !['DELIVERED', 'CANCELLED'].includes((o.orderStatus || o.status || '').toUpperCase()));
-  const pendingCount = activeOrders.length;
-  const deliveredCount = orders.filter((o: any) => (o.orderStatus || o.status || '').toUpperCase() === 'DELIVERED').length;
-  const revenueSum = orders
-    .filter((o: any) => (o.orderStatus || o.status || '').toUpperCase() !== 'CANCELLED')
-    .reduce((a: number, o: any) => a + Number(o.finalAmount || o.totalAmount || 0), 0);
+  // Totals come from the server (accurate across ALL orders, not just the loaded page)
+  const statusCounts = stats.counts;
+  const pendingRefunds = stats.pendingRefunds;
+  const inProgressCount = ['PLACED', 'ACCEPTED', 'PREPARING', 'OUT_FOR_DELIVERY']
+    .reduce((a, s) => a + (stats.counts[s] || 0), 0);
+  const deliveredCount = stats.counts['DELIVERED'] || 0;
+  const revenueSum = stats.revenue;
   const SUMMARY = [
-    { label: 'Total Orders', value: String(orders.length), g: PRIMARY_GRADIENT, Icon: ShoppingBag },
-    { label: 'In Progress', value: String(pendingCount), g: ACCEPTED_GRADIENT, Icon: Clock },
+    { label: 'Total Orders', value: String(stats.totalOrders), g: PRIMARY_GRADIENT, Icon: ShoppingBag },
+    { label: 'In Progress', value: String(inProgressCount), g: ACCEPTED_GRADIENT, Icon: Clock },
     { label: 'Delivered', value: String(deliveredCount), g: SUCCESS_GRADIENT, Icon: CheckCircle },
     { label: 'Revenue', value: `₹${revenueSum >= 1000 ? (revenueSum / 1000).toFixed(1) + 'k' : revenueSum.toFixed(0)}`, g: PREPARING_GRADIENT, Icon: TrendingUp },
   ];
@@ -586,7 +624,7 @@ export default function AdminOrders() {
          <View style={styles.headerTop}>
             <View>
               <Text style={styles.screenTitle}>Orders Central</Text>
-              <Text style={styles.screenSub}>{filtered.length} active sessions</Text>
+              <Text style={styles.screenSub}>{stats.totalOrders} total · {filtered.length} loaded</Text>
             </View>
             <TouchableOpacity style={styles.iconCircleBtn} onPress={exportCSV}>
                <Download size={18} color={TEXT_DARK} />
@@ -669,6 +707,19 @@ export default function AdminOrders() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         removeClippedSubviews={false}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ paddingVertical: 20 }}>
+              <ActivityIndicator color={PRIMARY_GRADIENT[0]} />
+            </View>
+          ) : (!hasMore && filtered.length > 0 ? (
+            <Text style={{ textAlign: 'center', color: TEXT_MUTED, fontFamily: 'Inter-Medium', fontSize: 12, paddingVertical: 20 }}>
+              — end of list —
+            </Text>
+          ) : null)
+        }
         ListEmptyComponent={
           loading ? (
             <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
